@@ -61,10 +61,10 @@ library(ids)
     
     if (row$risico == 0){sd = 0; sd_rend = 0}
     
-    if (row$spaargeld < 0){row$spaargeld = 0}
-    if (row$finproduct < 0){row$finproduct = 0}
-    if (row$restbezit < 0){row$restbezit = 0}
-    if (row$schuld < 0){row$schuld = 0}
+    if (row$spaargeld < 0 | is.na(row$spaargeld)){row$spaargeld = 0}
+    if (row$finproduct < 0 | is.na(row$finproduct)){row$finproduct = 0}
+    if (row$restbezit < 0 | is.na(row$restbezit)){row$restbezit = 0}
+    if (row$schuld < 0 | is.na(row$schuld)){row$schuld = 0}
     
     data_list[[1]] = cbind(
       row, data.frame(
@@ -80,12 +80,12 @@ library(ids)
       vorig_jaar = data_list[[i-1]] 
       
       dat1 = data.frame(
-        id = row$id, jaar = jaar, omschrijving = vorig_jaar$omschrijving, risico = row$risico, 
+        id = row$id, jaar = jaar, omschrijving = vorig_jaar$omschrijving, risico = vorig_jaar$risico, 
         spaargeld = update_value(vorig_jaar$spaargeld, vorig_jaar$spaargeld_rendperc),
         finproduct = update_value(vorig_jaar$finproduct, vorig_jaar$finproduct_rendperc),
         restbezit = update_value(vorig_jaar$restbezit, vorig_jaar$restbezit_rendperc),
         schuld = vorig_jaar$schuld,
-        spaargeld_rendperc = gen_value(row$spaargeld_rendperc, sd, n = 1), 
+        spaargeld_rendperc = row$spaargeld_rendperc, 
         finproduct_rendperc = gen_value(row$finproduct_rendperc, sd_rend, n = 1),
         restbezit_rendperc = gen_value(row$restbezit_rendperc, sd, n = 1),
         schuld_rendperc = gen_value(row$schuld_rendperc, sd, n = 1)) 
@@ -125,23 +125,6 @@ library(ids)
       arrange(id, jaar)
     
     return(data)
-  }
-  
-
-  # functie om data mediaan belastingplichtige in bepaald jaar op te vragen
-  get_median = function(data, year, period, output = "data"){
-    
-    closest = function(values,specified_value){min(values[which(abs(values-specified_value)==min(abs(values-specified_value)))])}
-    
-    df = subset(data, jaar == year) 
-    median_value = median(df$aanwas)
-    df = subset(df, aanwas == closest(df$aanwas, median_value))
-    median_id = df$id[1]
-    df = subset(data, id == median_id & jaar %in% period)
-    
-    if (output == "data"){return(df)}
-    if (output == "id"){return(median_id)}
-    
   }
   
   # function to calculate carry back/forward losses
@@ -254,7 +237,7 @@ library(ids)
   }
   
   # functie om belasting te bepalen voor een bepaalde grondslag 
-  bepaal_belasting = function(grondslag, schijf_2, schijf_3, tarief_1, tarief_2, tarief_3){
+  bepaal_belasting = function(grondslag, schijf_2 = NA, schijf_3 = NA, tarief_1 = 34, tarief_2 = NA, tarief_3 = NA){
     
     # Schijf 3
     if(!is.na(schijf_3)){schijf_3 = grondslag - schijf_3} else {schijf_3 = 0}
@@ -291,7 +274,11 @@ library(ids)
   
   # functie om aanwas te berekenen gegeven vermogen en rendement
   bereken_aanwas = function(vermogen, rendement){
+    if (rendement != 0){
     aanwas =  vermogen * (rendement / 100)
+    } else {
+    aanwas = 0
+    }
     return(aanwas)
   }
   
@@ -322,18 +309,24 @@ library(ids)
             schijf_2 = variant$schijf_2, schijf_3 = variant$schijf_3, tarief_1 = variant$tarief_1, tarief_2 = variant$tarief_2, tarief_3 = variant$tarief_3,
             # grondslag berekening
             verreken_verlies(data = case, hvi = variant$hvi, cf = variant$cf, cb = variant$cb, drempel = variant$verlies_drempel)) %>%
-            mutate(grondslag_perc = (grondslag / aanwas)*100) %>%
+            mutate(grondslag_perc = case_when(aanwas > 0 ~ ((grondslag / aanwas)*100), aanwas < 0 ~ 0)) %>%
             mutate(vv = cb + cf) 
           
           verlies = abs(sum(subset(case, aanwas < 0 & jaar < 2036)$aanwas))
           verlies_verrekend = (sum(temp$cb) + sum(temp$cf))
-          temp$vv_perc = (verlies_verrekend / verlies)*100; if (verlies_verrekend == 0){temp$vv_perc = 0}
+          if (verlies > 0){
+            temp$vv_perc = (verlies_verrekend / verlies)*100; if (verlies_verrekend == 0){temp$vv_perc = 0}
+          } else {
+            temp$vv_perc = 0
+          }
           
           # bepaal belasting
           for (i in c(1:nrow(temp))){
             belasting = bepaal_belasting(temp$grondslag[i], schijf_2 = variant$schijf_2, schijf_3 = variant$schijf_3, tarief_1 = variant$tarief_1, tarief_2 = variant$tarief_2, tarief_3 = variant$tarief_3)
             temp[i, "belasting"] = sum(belasting$belasting, na.rm = T)
-            temp[i, "belasting_perc"] = (sum(belasting$belasting, na.rm = T) / sum(belasting$aanwas))*100
+            if (sum(belasting$aaanwas, na.rm = T) > 0){
+              temp[i, "belasting_perc"] = (sum(belasting$belasting, na.rm = T) / sum(belasting$aanwas))*100
+            } else {temp[i, "belasting_perc"] = 0}
           }
           
           newdata[[length(newdata) + 1]] = temp
@@ -347,7 +340,7 @@ library(ids)
                            t3 = newdata$tarief_3, person_id = newdata$id_indiv, vermogen = newdata$vermogen, aanwas = newdata$aanwas, 
                            vv = newdata$vv, vv_perc = newdata$vv_perc, grondslag = newdata$grondslag, 
                            grondslag_perc = newdata$grondslag_perc, belasting = newdata$belasting, belasting_perc = newdata$belasting_perc) %>%
-                mutate_at(vars(-x, -group, -person_id), funs(round(., 1)))
+                 mutate_at(vars(-x, -group, -person_id), funs(round(., 1)))
       
       
       if (time == "één jaar"){newdata = subset(newdata, jaar == variant$jaar)
@@ -364,7 +357,7 @@ library(ids)
 # DATA 
 
   # base values 
-  id = 1; jaar = 2026; omschrijving = "Jan Modaal 1"; risico = 2; 
+  id = 1; jaar = 2026; omschrijving = "Jan Modaal"; risico = 2; 
   spaargeld = gen_value(42300, sd); finproduct = gen_value(7000, sd);
   restbezit = 0; schuld = gen_value(12800, sd); 
   spaargeld_rendperc = gen_value(0.36, sd); 
@@ -387,7 +380,8 @@ library(ids)
     schijf_3 = as.numeric(NA), tarief_1 = 34, tarief_2 = as.numeric(NA), tarief_3 = as.numeric(NA))
   
   # vergelijking data
-  comparison_data = data.frame(naam_vergelijking = "Vergelijking 1", variant = "Voorbeeld", gini_grondslag = "t.b.a. next update", gini_belasting = "t.b.a. update", opbrengst_stabiliteit = "t.b.a. next update", prox_winstbelasting = "t.b.a. next update",
+  comparison_data = data.frame(naam_vergelijking = "Vergelijking", variant = "Voorbeeld", budget_raming = "t.b.a. in future!!!", gini_grondslag = "t.b.a. next update", 
+                               gini_belasting = "t.b.a. update", opbrengst_stabiliteit = "t.b.a. next update", prox_winstbelasting = "t.b.a. next update",
                                hvi = 1000, verlies_drempel = 1000, cf = 9, cb = 1, schijf_2 = NA, schijf_3 = NA, tarief_1 = 34, tarief_2 = NA, tarief_3 = NA,
                                omschrijving = "Jan Modaal 1", risico = 2, belasting = 170, belasting_perc = 10.45, verlies = 1000, verrekend_verlies = 100, verrekend_verlies_perc = 10, 
                                vermogen = 36500, aanwas = 1625.74, grondslag = 500, grondslag_perc = 30.76, spaargeld = 42300, finproduct = 7000, restbezit = 0, schuld = 12800, 
@@ -815,9 +809,10 @@ server = function(input, output) {
       # Easter Egg
       easteregg = data.frame(
         omschrijving = c("Nick Jongerius", "Sjifra de Leeuw", "Josha Box", "Stefan Smalbrugge", "Nienke Cornelissen", "Allard Smit",
-                         "Aschwin Moes", "Bart van den Hof", "Kees den Boogert", "Marjolein van den Berg", "Marjan Nienhuis", "Ruud Beenhakker", "Koen van Schie"), 
-        voornaam = c("Nick", "Sjifra", "Josha", "Stefan", "Nienke", "Allard", "Aschwin", "Bart", "Kees", "Marjolein", "Marjan", "Ruud", "Koen"), 
-        geslacht = c("man", "vrouw", "man", "man", "vrouw", "man", "man", "man", "man", "vrouw", "vrouw", "man", "man")
+                         "Aschwin Moes", "Bart van den Hof", "Kees den Boogert", "Marjolein van den Berg", "Marjan Nienhuis", "Ruud Beenhakker", "Koen van Schie", 
+                         "Rocus van Opstal"), 
+        voornaam = c("Nick", "Sjifra", "Josha", "Stefan", "Nienke", "Allard", "Aschwin", "Bart", "Kees", "Marjolein", "Marjan", "Ruud", "Koen", "Rocus"), 
+        geslacht = c("man", "vrouw", "man", "man", "vrouw", "man", "man", "man", "man", "vrouw", "vrouw", "man", "man", "man")
       )
       
       easteregg$vnw = "hij"; easteregg$vnw[easteregg$geslacht == "vrouw"] = "zij"
@@ -979,7 +974,7 @@ server = function(input, output) {
       text = ""
       
       # als geen data beschikbaar
-      if (nrow(case_data()) < 1){text = "<b>Er is geen data beschikbaar. Voeg data toe met behulp van de tool.</b> "
+      if (nrow(case_data()) < 1){text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
       
       # als wel data beschikbaar
       } else {
@@ -1025,6 +1020,7 @@ server = function(input, output) {
       inFile = input$upload_data
       if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
       
+      if (nrow(data) > 0){
       selection =  input$case_names_rows_selected
       selection = selection[length(selection)]
       if (is.null(selection)){selection =1}
@@ -1040,7 +1036,7 @@ server = function(input, output) {
       jaar_min = subset(df_long, aanwas == aanwas_min)$jaar[1]
       jaar_max = subset(df_long, aanwas == aanwas_max)$jaar[1]
       
-      paste0("De grondslag van ", naam, " verschilt over de jaren heen.
+      text = paste0("De grondslag van ", naam, " verschilt over de jaren heen.
              U heeft enkel de data voor 2026 opgegeven. De aanwas voor resterende jaren wordt 
              op basis van gerandomiseerde rendementen doorgerekend naar de jaren 2027 tot 2045.
              Het resultaat hiervan kunt u grafisch inspecteren in de onderstaande grafiek. 
@@ -1050,6 +1046,11 @@ server = function(input, output) {
              wordt deze in mindering gebracht bij de positieve grondslag in een ander jaar.
              Welk jaar dat is en hoeveel ", naam, " mag verrekenen is afhankelijk van de parameters
              van het door u gekozen stelsel in het volgende luik.")
+      } else {
+        text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool"
+      }
+      
+      text
       
     })
     
@@ -1066,6 +1067,7 @@ server = function(input, output) {
       id_no = subset(data, jaar == 2026)[selection,]$omschrijving[1]
       df = subset(data, omschrijving == id_no)
       
+      if (nrow(df) > 0){
       plot_ly(df, y = ~aanwas_forfait, x = ~jaar, type = 'scatter', 
               line = list(width = 2, color = "#BEBEBE"),
               marker = list(color = '#BEBEBE'),
@@ -1080,6 +1082,7 @@ server = function(input, output) {
         add_lines(y = 0, x = range(df$jaar), line = list(color = "black", width = 2), inherit = FALSE, showlegend = FALSE) %>% 
         layout(xaxis = list(title = ''), yaxis = list(title = 'Aanwas in €', showticklabels = T), 
                legend = list(orientation = 'h'))
+      } else {}
       
     })
     
@@ -1240,6 +1243,8 @@ server = function(input, output) {
       
       dat_variant = subset(dat_variant, variant == dat_variant_id)
       
+      if (nrow(dat_variant) > 0){
+      
       # PARAMETERS
       naam_variant = dat_variant_id
       hvi = dat_variant$hvi
@@ -1352,6 +1357,10 @@ server = function(input, output) {
                         <li>de staat ondervindt in beginsel een budgettaire opbrengst; </li>
                         <li>in combinatie met verliesverrekening, is deze opbrengst instabieler. </li>
                         </ul>")
+      } else {
+        text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
+      }
+      
       text
       
     })
@@ -1469,7 +1478,7 @@ server = function(input, output) {
     output$comparison_data = renderDataTable({
       
       comparison_data() %>%
-        setNames(c("vergelijking", "variant", "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting",
+        setNames(c("vergelijking", "variant", "raming opbrengst", "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting",
                    "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %", "belastingplichtige", "risico", "belasting €", 
                    "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)",
                    "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
@@ -1555,6 +1564,7 @@ server = function(input, output) {
                     
                                    # variant
                                    variant = dat_variant$variant[j], 
+                                   budget_raming = "t.b.a. in future!!!",
                                    gini_grondslag = "t.b.a. next update", 
                                    gini_belasting = "t.b.a. update", 
                                    opbrengst_stabiliteit = "t.b.a. next update",

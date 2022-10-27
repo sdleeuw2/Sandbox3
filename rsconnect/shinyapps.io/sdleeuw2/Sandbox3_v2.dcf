@@ -5,10 +5,9 @@ account: sdleeuw2
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 7340348
-bundleId: 6442782
+bundleId: 6446939
 url: https://sdleeuw2.shinyapps.io/Sandbox3_v2/
-when: 1666790889.40459
-lastSyncTime: 1666790889.40461
+when: 1666874298.46406
+lastSyncTime: 1666874298.46408
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: sandbox3_cases.xslx
