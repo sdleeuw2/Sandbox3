@@ -1374,6 +1374,8 @@ server = function(input, output) {
       
       if (is.null(input$upload_data_variant)){dat_variant = variant_data_input()} else {dat_variant = upload_variant_data$data}
       
+      if (nrow(dat_variant) > 0){
+      
       if (!is.null(input$variant_names_rows_selected)){
         dat_variant_id = dat_variant %>%
           filter(row_number() %in% input$variant_names_rows_selected) %>%
@@ -1390,12 +1392,13 @@ server = function(input, output) {
       hvi = dat_variant$hvi
       vv_drempel = -dat_variant$verlies_drempel
       vv_cf = input_jaar - dat_variant$cf - 0.5; if (vv_cf < 2026){vv_cf = 2026 - 0.5}
-      vv_cb = input_jaar - dat_variant$cb - 0.5; if (vv_cb < 2026){vv_cb = 2026 - 0.5}
+      vv_cb = input_jaar + dat_variant$cb + 0.5; if (vv_cb > 2045){vv_cb = 2045 + 0.5}
       s2 = dat_variant$schijf_2; s3 = dat_variant$schijf_3; 
       t1 = dat_variant$tarief_1; t2 = dat_variant$tarief_2; t3 = dat_variant$tarief_3
       
       schijf_aantal = 1; if (!is.na(t3) & !is.na(s3)){schijf_aantal = 3};  if (is.na(t3) & is.na(s3) & !is.na(t2) & !is.na(s2)){schijf_aantal = 2}  
       
+      # HIER AANPASSEN!!! randomly generate case knop
       aanwas = c(0.5*hvi, hvi + 0.5*hvi, 2*hvi, 3*hvi, 4*hvi,
                  3*hvi, 2*hvi, 2.5*hvi, 0.7*hvi, 4*vv_drempel, 3*vv_drempel, 
                  1.5*vv_drempel, 0.5*vv_drempel, 1.3*hvi, 2*hvi, 0.2*hvi,
@@ -1448,6 +1451,7 @@ server = function(input, output) {
         layout(yaxis = list(showticklabels = F), hovermode = "x unified", showlegend = T)
             
       fig
+      } else {}
       
     })
     
