@@ -1416,12 +1416,12 @@ server = function(input, output) {
       fig = plot_ly(showlegend = F) %>%
         
         # hvi en vv drempel
-        add_polygons(x=c(2025.5,2025.5,2045.5,2045.5),y=c(space,hvi,hvi,space), color=I("grey70"), opacity = 0.3,  name = "<b>Heffingvrij inkomen:</b> Aanwas is niet belastbaar en \nkan ook niet verrekend worden met verliezen.", hoverinfo = 'text', hovertemplate = '%{text}') %>% 
+        add_polygons(x=c(2025.5,2025.5,2045.5,2045.5),y=c(space,hvi,hvi,space), color=I("grey70"), opacity = 0.3,  name = "<b>Heffingvrij inkomen:</b> aanwas is niet belastbaar en \nkan ook niet verrekend worden met verliezen.", hoverinfo = 'text', hovertemplate = '%{text}') %>% 
         add_polygons(x=c(2025.5,2025.5,2045.5,2045.5),y=c(vv_drempel,-space,-space, vv_drempel), color=I("grey70"), opacity = 0.3,  name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.", hoverinfo = 'text', hovertemplate = '%{text}') %>% 
         
         # verliesverrekening 
-        add_polygons(x=c(vv_cf,vv_cf,input_jaar,input_jaar),y=c(vv_drempel-space,ymin,ymin,vv_drempel-space), color=I("red"), opacity = 0.3, name = "<b>Voorwaartse verliesverrekening:</b>\nverlies mag verrekend worden met evt. winst belastingjaar.",  hoverinfo = 'text', hovertemplate = '%{text}') %>%
-        add_polygons(x=c(vv_cb,vv_cb,input_jaar,input_jaar),y=c(hvi+space,ymax,ymax,hvi+space), color=I("green"), opacity = 0.3, name = "<b>Achterwaartse verliesverrekening:</b>\nwinst mag verrekend worden met evt. verlies belastingjaar.",  hoverinfo = 'text', hovertemplate = '%{text}') %>%
+        add_polygons(x=c(vv_cf,vv_cf,input_jaar,input_jaar),y=c(vv_drempel-space,ymin,ymin,vv_drempel-space), color=I("red"), opacity = 0.3, name = "<b>Voorwaartse verliesverrekening:</b>\nverlies mag verrekend worden met grondslag belastingjaar.",  hoverinfo = 'text', hovertemplate = '%{text}') %>%
+        add_polygons(x=c(input_jaar, input_jaar, vv_cb, vv_cb), y=c(vv_drempel-space,ymin,ymin,vv_drempel-space), color=I("green"), opacity = 0.3, name = "<b>Achterwaartse verliesverrekening:</b>\n toekomstig verlies mag verrekend worden met grondslag belastingjaar.",  hoverinfo = 'text', hovertemplate = '%{text}') %>%
       
         # huidig jaar
         add_trace(x=input_jaar, y=c(ymin - 10, ymax + 10), opacity = 0.7, color=I("grey20"), mode = 'lines', hovertemplate = '') 
@@ -1561,6 +1561,14 @@ server = function(input, output) {
                   
                   belasting = mean(do.call(rbind, belasting), na.rm = T)
                   
+                  # percentage belasting tov aanwas
+                  if(mean(dat_case_temp$aanwas, na.rm = T) > 0) {belasting_perc = round(((belasting / mean(dat_case_temp$aanwas, na.rm = T))*100), 2)} else {belasting_perc = 0}
+                  # percentage verrekend verlies tov totaal verlies
+                  if (nrow(subset(dat_case_temp, aanwas < 0) > 0)){verlies = mean(subset(dat_case_temp, aanwas < 0)$aanwas, na.rm = T)} else {verlies = 0}
+                  if (verlies > 0){verrekend_verlies_perc = (mean(dat_case_verlies$cf, na.rm = T) + mean(dat_case_verlies$cb, na.rm = T))/verlies} else {verrekend_verlies_perc = 0}
+                  # percentage grondslag tov aanwas
+                  if (mean(dat_case_verlies$grondslag, na.rm = T) > 0){grondslag_perc = round((mean(dat_case_verlies$grondslag, na.rm = T)/mean(dat_case_temp$aanwas, na.rm = T))*100, 2)} else {grondslag_perc = 0}
+                  
                   
                   # berekeningen
                   temp_case = data.frame(
@@ -1587,14 +1595,14 @@ server = function(input, output) {
                                    omschrijving = dat_case_temp$omschrijving[1], 
                                    risico = round(mean(dat_case_temp$risico, na.rm = T), 2), 
                                    belasting = round(belasting, 2), 
-                                   belasting_perc = round(((belasting / mean(dat_case_temp$aanwas, na.rm = T))*100), 2), 
+                                   belasting_perc = belasting_perc, 
                                    verlies = abs(round(mean(subset(dat_case_verlies, aanwas < 0)$aanwas, na.rm = T), 2)),
                                    verrekend_verlies = round(mean(dat_case_verlies$cf, na.rm = T) +  mean(dat_case_verlies$cb, na.rm = T), 2), 
-                                   verrekend_verlies_perc = round((mean(dat_case_verlies$cf, na.rm = T) +  mean(dat_case_verlies$cb, na.rm = T)) / abs(mean(subset(dat_case_temp, aanwas < 0)$aanwas, na.rm = T))*100,2),
+                                   verrekend_verlies_perc = verrekend_verlies_perc,
                                    vermogen = round(mean(dat_case_temp$vermogen, na.rm = T), 2), 
                                    aanwas = round(mean(dat_case_temp$aanwas, na.rm = T), 2), 
                                    grondslag = round(mean(subset(dat_case_verlies, grondslag > 0)$grondslag, na.rm = T), 2), 
-                                   grondslag_perc = round((mean(dat_case_verlies$grondslag, na.rm = T)/mean(dat_case_temp$aanwas, na.rm = T))*100, 2), 
+                                   grondslag_perc = grondslag_perc, 
                                    spaargeld = round(mean(dat_case_temp$spaargeld, na.rm = T), 2), 
                                    finproduct = round(mean(dat_case_temp$finproduct, na.rm = T), 2), 
                                    restbezit = round(mean(dat_case_temp$restbezit, na.rm = T), 2), 
