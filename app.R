@@ -289,7 +289,7 @@ library(ineq)
   calculate_variant_stats = function(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
     
     # test data
-    test = select(readxl::read_xlsx("/Users/sjifradeleeuw/Downloads/testdata.xlsx"),c("id", "jaar", "aanwas"))
+    test = select(readxl::read_xlsx("testdata.xlsx"),c("id", "jaar", "aanwas"))
     
     test_new = list()
     test_ideal = list()
@@ -300,6 +300,7 @@ library(ineq)
       temp_ideal = verreken_verlies(subset(test, id == test_id), hvi = hvi, cf = 20, cb = 20, drempel = 0)
       
       temp$belasting = NA
+      temp_ideal$belasting = NA
       for (j in 1:nrow(temp)){
         temp$belasting[j] = sum(bepaal_belasting(temp$grondslag[j], schijf_2 = s2, schijf_3 = s3, tarief_1 = t1, tarief_2 = t2, tarief_3 = t3)$belasting, na.rm = T)
         temp_ideal$belasting[j] = sum(bepaal_belasting(temp_ideal$grondslag[j], schijf_2 = s2, schijf_3 = s3, tarief_1 = t1, tarief_2 = t2, tarief_3 = t3)$belasting, na.rm = T)
@@ -394,7 +395,7 @@ ui = fluidPage(
         
       type = "tabs",
         
-      # TAB 1. HOE WORDT DE GRONDSLAG BEPAALD?
+      # TAB 1. DATASET BELASTINGPLICHTIGEN
       tabPanel(
           
         div(style = "font-size: 14px","Dataset belastingplichtigen"),
@@ -489,7 +490,7 @@ ui = fluidPage(
         
         
         
-        # TAB 2: HOE WORDT DE BELASTING BEPAALD?
+        # TAB 2: DATASET VARIANTEN
         
         tabPanel(div(style = "font-size: 14px", "Dataset varianten"),
                  
