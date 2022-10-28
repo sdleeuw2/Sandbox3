@@ -286,7 +286,7 @@ library(ineq)
   }
   
   # functie om objectieve variant statistieken te genereren
-  variant_stats = function(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
+  calculate_variant_stats = function(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
     
     # test data
     test = select(readxl::read_xlsx("/Users/sjifradeleeuw/Downloads/testdata.xlsx"),c("id", "jaar", "aanwas"))
@@ -316,25 +316,25 @@ library(ineq)
     
     # budgettaire raming
     scale = 12000000 / nrow(test_new_agg)
-    budget_raming = sum(test_new$belasting, na.rm = T)*scale
+    budget_raming = round(sum(test_new$belasting, na.rm = T)*scale / 1000000, 2)
     
     # grondslag (on)gelijkheid
     test_new$grondslag_perc = 0
     test_new$grondslag_perc[test_new$aanwas > 0] = (test_new$grondslag[which(test_new$aanwas > 0)] / test_new$aanwas[which(test_new$aanwas > 0)])*100
     
-    gini_grondslag = ineq(test_new$grondslag_perc[which(test_new$jaar == 2045)],type="Gini")
+    gini_grondslag = round(ineq(test_new$grondslag_perc[which(test_new$jaar == 2045)],type="Gini"),2)
     
     # belasting (on)gelijkheid
     test_new$belasting_perc = 0
     test_new$belasting_perc[test_new$aanwas > 0] = (test_new$belasting[which(test_new$aanwas > 0)] / test_new$belasting[which(test_new$aanwas > 0)])*100
     
-    gini_belasting = ineq(test_new$belasting_perc[which(test_new$jaar == 2045)],type="Gini")
+    gini_belasting = round(ineq(test_new$belasting_perc[which(test_new$jaar == 2045)],type="Gini"),2)
     
     # opbrengst instabiliteit 
-    gini_opbrengst = ineq(aggregate(belasting~jaar, data = test_new, FUN = sum)$belasting,type="Gini")
+    gini_opbrengst = round(ineq(aggregate(belasting~jaar, data = test_new, FUN = sum)$belasting,type="Gini"),2)
     
     # overbelasting
-    overbelasting = budget_raming - sum(test_ideal$belasting, na.rm = T)*scale
+    overbelasting = round(budget_raming - (sum(test_ideal$belasting, na.rm = T)*scale/1000000),2)
     
     return(list(budget_raming = budget_raming, gini_grondslag = gini_grondslag, gini_belasting = gini_belasting, gini_opbrengst = gini_opbrengst, overbelasting = overbelasting))
     
@@ -360,21 +360,24 @@ library(ineq)
                schuld_rendperc = schuld_rendperc), sd_rend = sd_rend)
   
   # varianten data
+  variant_stats = calculate_variant_stats(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA)
+  
   variant_data = data.frame(
     variant = "Voorbeeld", 
-    budget_raming = "t.b.a. in future!!!",
-    gini_grondslag = "t.b.a. next update", 
-    gini_belasting = "t.b.a. update", 
-    opbrengst_stabiliteit = "t.b.a. next update",
-    prox_winstbelasting = "t.b.a. next update",
+    budget_raming = variant_stats$budget_raming,
+    gini_grondslag = variant_stats$gini_grondslag, 
+    gini_belasting = variant_stats$gini_belasting, 
+    gini_opbrengst = variant_stats$gini_opbrengst, 
+    overbelasting = variant_stats$overbelasting,
     hvi = 1000, verlies_drempel = 1000,
     cf = 9, cb = 1, schijf_2 = as.numeric(NA), 
     schijf_3 = as.numeric(NA), tarief_1 = 34, 
     tarief_2 = as.numeric(NA), tarief_3 = as.numeric(NA))
   
   # vergelijking data
-  comparison_data = data.frame(naam_vergelijking = "Vergelijking", variant = "Voorbeeld", budget_raming = "t.b.a. in future!!!", gini_grondslag = "t.b.a. next update", 
-                               gini_belasting = "t.b.a. update", opbrengst_stabiliteit = "t.b.a. next update", prox_winstbelasting = "t.b.a. next update",
+  comparison_data = data.frame(naam_vergelijking = "Vergelijking", variant = "Voorbeeld", budget_raming = variant_stats$budget_raming,
+                               gini_grondslag = variant_stats$gini_grondslag, gini_belasting = variant_stats$gini_belasting, 
+                               gini_opbrengst = variant_stats$gini_opbrengst, overbelasting = variant_stats$overbelasting,
                                hvi = 1000, verlies_drempel = 1000, cf = 9, cb = 1, schijf_2 = NA, schijf_3 = NA, tarief_1 = 34, tarief_2 = NA, tarief_3 = NA,
                                omschrijving = "Jan Modaal 1", risico = 2, belasting = 170, belasting_perc = 10.45, verlies = 1000, verrekend_verlies = 100, verrekend_verlies_perc = 10, 
                                vermogen = 36500, aanwas = 1625.74, grondslag = 500, grondslag_perc = 30.76, spaargeld = 42300, finproduct = 7000, restbezit = 0, schuld = 12800, 
@@ -553,7 +556,10 @@ ui = fluidPage(
                               <li>overbelasting, m.n. de omvang van de opbrengst (in mln.) die te wijden is aan de inperkingen op verliesverrekening. </li>
                               </ul>
                         
-                        U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>."),
+                        U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>.<br>
+                        <b>Waarschuwing: de onderstaande statistieken zijn schattingen gegenereerd op basis van een random steekproef met beperkte omvang.
+                        U zal in een volgende update de mogelijkheid ontvangen een volledige raming voor een door u geselecteerde variant te genereren onder 
+                        de tab <em>inspecteer variant</em>.</b>"),
                         HTML("<br>"), 
                         fluidRow(
                           column(3, h5("download template"), downloadButton("download_template_variant", label = "download template")),
@@ -1114,11 +1120,11 @@ server = function(input, output) {
       
       if (is.null(input$upload_data_variant)){variant_data_input() %>% filter(row_number() %in% -1) %>% variant_data_input()
       } else {upload_variant_data$data =  data.frame(variant = as.character(), 
-                                                     budget_raming = as.character(),
-                                                     gini_grondslag = as.character(), 
-                                                     gini_belasting = as.character(), 
-                                                     opbrengst_stabiliteit = as.character(), 
-                                                     prox_winstbelasting = as.character(), 
+                                                     budget_raming = as.numeric(),
+                                                     gini_grondslag = as.numeric(), 
+                                                     gini_belasting = as.numeric(), 
+                                                     gini_opbrengst = as.numeric(), 
+                                                     overbelasting = as.numeric(), 
                                                      hvi = as.numeric(), verlies_drempel = as.numeric(),
                                                      cf = as.numeric(), cb = as.numeric(), schijf_2 = as.numeric(), 
                                                      schijf_3 = as.numeric(), tarief_1 = as.numeric(), tarief_2 = as.numeric(),
@@ -1171,13 +1177,24 @@ server = function(input, output) {
       if(isolate(input$naam_variant) %in% data$variant){naam_variant_new = paste0(isolate(input$naam_variant), " ", nrow(data)+1)
       } else {naam_variant_new = isolate(input$naam_variant)}
       
+      variant_stats = calculate_variant_stats(
+        hvi = isolate(input$hvi), 
+        vv_drempel = isolate(input$verlies_drempel),
+        cf = isolate(input$verlies_voor),
+        cb = isolate(input$verlies_achter),
+        s2 = isolate(input$schijf_2),
+        s3 = isolate(input$schijf_3),
+        t1 = isolate(input$tarief_1),
+        t2 = isolate(input$tarief_2),
+        t3 = isolate(input$tarief_3))
+      
       dat = data.frame(
         variant = naam_variant_new,
-        budget_raming = "t.b.a. in future!!!",
-        gini_grondslag = "t.b.a. next update", 
-        gini_belasting = "t.b.a. update", 
-        opbrengst_stabiliteit = "t.b.a. next update",
-        prox_winstbelasting = "t.b.a. next update",
+        budget_raming = variant_stats$budget_raming,
+        gini_grondslag = variant_stats$gini_grondslag, 
+        gini_belasting = variant_stats$gini_belasting, 
+        gini_opbrengst = variant_stats$gini_opbrengst,
+        overbelasting = variant_stats$overbelasting,
         hvi = isolate(input$hvi),
         verlies_drempel = isolate(input$verlies_drempel),
         cf = isolate(input$verlies_voor),
@@ -1213,8 +1230,8 @@ server = function(input, output) {
             budget_raming = "niet invullen, little padawan",
             gini_grondslag = "niet invullen, little padawan", 
             gini_belasting = "niet invullen, little padawan", 
-            opbrengst_stabiliteit = "niet invullen, little padawan",
-            prox_winstbelasting = "niet invullen, little padawan",
+            gini_opbrengst = "niet invullen, little padawan",
+            overbelasting = "niet invullen, little padawan",
             hvi = NA,
             verlies_drempel = NA,
             cf = NA,
@@ -1590,8 +1607,8 @@ server = function(input, output) {
                                    budget_raming = "t.b.a. in future!!!",
                                    gini_grondslag = "t.b.a. next update", 
                                    gini_belasting = "t.b.a. update", 
-                                   opbrengst_stabiliteit = "t.b.a. next update",
-                                   prox_winstbelasting = "t.b.a. next update",
+                                   gini_opbrengst = "t.b.a. next update",
+                                   overbelasting = "t.b.a. next update",
                                    hvi = dat_variant$hvi[j], 
                                    verlies_drempel = dat_variant$verlies_drempel[j], 
                                    cf = dat_variant$cf[j], 
