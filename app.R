@@ -35,7 +35,7 @@ library(ids)
     
     # na toerekening van het hvv
     hvv = 57000
-    prp = hvv / vermogen
+    if (vermogen > 0) {prp = hvv / vermogen} else {prp = 1}
     if (prp > 1){prp = 1}
     vermogen_hvv = (spaargeld - (prp*spaargeld)) + (finproduct - (prp*finproduct)) + (restbezit - (prp*restbezit)) - (schuld - (prp*schuld))
     aanwas_hvv = 0.0036*(spaargeld - (prp*spaargeld)) + 0.0617*(finproduct - (prp*finproduct)) + 0.0617*(restbezit - (prp*restbezit)) - 0.0257*(schuld - (prp*schuld))
@@ -282,78 +282,6 @@ library(ids)
     return(aanwas)
   }
   
-  # functie om selectie rijen twee datasets om te zetten in een databestand
-  process_selection = function(variant_selection, case_selection, variant_data, case_data, yvar, time){
-    
-    # VOEG TOE VERSCHIL T.O.V. OVERBRUGGINGSWETGEVING
-    
-    if (length(variant_selection) > 0 & length(case_selection) > 0){
-      
-      variant_data = variant_data[variant_selection,]
-      case_ids = unique(subset(case_data, jaar == 2036)[case_selection,"id"])
-      newdata = list()
-      
-      for (i in c(1:nrow(variant_data))){
-        
-        variant = variant_data[i,]
-        
-        for (j in c(1:length(case_ids))){  
-          
-          case = case_data[case_data$id == case_ids[j],]
-          
-          temp = data.frame(
-            
-            id_indiv = case_ids[j],
-            # variant details 
-            variant = variant$variant, hvi = variant$hvi, verlies_drempel = variant$verlies_drempel, cf = variant$cf, cb = variant$cb, 
-            schijf_2 = variant$schijf_2, schijf_3 = variant$schijf_3, tarief_1 = variant$tarief_1, tarief_2 = variant$tarief_2, tarief_3 = variant$tarief_3,
-            # grondslag berekening
-            verreken_verlies(data = case, hvi = variant$hvi, cf = variant$cf, cb = variant$cb, drempel = variant$verlies_drempel)) %>%
-            mutate(grondslag_perc = case_when(aanwas > 0 ~ ((grondslag / aanwas)*100), aanwas < 0 ~ 0)) %>%
-            mutate(vv = cb + cf) 
-          
-          verlies = abs(sum(subset(case, aanwas < 0 & jaar < 2036)$aanwas))
-          verlies_verrekend = (sum(temp$cb) + sum(temp$cf))
-          if (verlies > 0){
-            temp$vv_perc = (verlies_verrekend / verlies)*100; if (verlies_verrekend == 0){temp$vv_perc = 0}
-          } else {
-            temp$vv_perc = 0
-          }
-          
-          # bepaal belasting
-          for (i in c(1:nrow(temp))){
-            belasting = bepaal_belasting(temp$grondslag[i], schijf_2 = variant$schijf_2, schijf_3 = variant$schijf_3, tarief_1 = variant$tarief_1, tarief_2 = variant$tarief_2, tarief_3 = variant$tarief_3)
-            temp[i, "belasting"] = sum(belasting$belasting, na.rm = T)
-            if (sum(belasting$aaanwas, na.rm = T) > 0){
-              temp[i, "belasting_perc"] = (sum(belasting$belasting, na.rm = T) / sum(belasting$aanwas))*100
-            } else {temp[i, "belasting_perc"] = 0}
-          }
-          
-          newdata[[length(newdata) + 1]] = temp
-          
-        }}
-      
-      newdata = do.call(rbind, newdata)  
-      newdata = data.frame(x = newdata$variant, y = newdata[, yvar], group = factor(newdata$id_indiv), jaar = newdata$jaar, 
-                           hvi = newdata$hvi, verlies_drempel = newdata$verlies_drempel, cf = newdata$cf, cb = newdata$cb, 
-                           s2 = newdata$schijf_2, s3 = newdata$schijf_3, t1 = newdata$tarief_1, t2 = newdata$tarief_2, 
-                           t3 = newdata$tarief_3, person_id = newdata$id_indiv, vermogen = newdata$vermogen, aanwas = newdata$aanwas, 
-                           vv = newdata$vv, vv_perc = newdata$vv_perc, grondslag = newdata$grondslag, 
-                           grondslag_perc = newdata$grondslag_perc, belasting = newdata$belasting, belasting_perc = newdata$belasting_perc) %>%
-                 mutate_at(vars(-x, -group, -person_id), funs(round(., 1)))
-      
-      
-      if (time == "één jaar"){newdata = subset(newdata, jaar == variant$jaar)
-      } else if (time == "alle jaren"){
-        newdata = 
-          merge(select(subset(newdata, jaar == variant$jaar), -c("y")),
-                aggregate(y ~ x + group, data = newdata, FUN = mean), by = c("x", "group"))}
-      
-      
-      return(newdata)
-      
-    }}
-
 # DATA 
 
   # base values 
@@ -375,9 +303,16 @@ library(ids)
   
   # varianten data
   variant_data = data.frame(
-    variant = "Voorbeeld", hvi = 1000, verlies_drempel = 1000,
+    variant = "Voorbeeld", 
+    budget_raming = "t.b.a. in future!!!",
+    gini_grondslag = "t.b.a. next update", 
+    gini_belasting = "t.b.a. update", 
+    opbrengst_stabiliteit = "t.b.a. next update",
+    prox_winstbelasting = "t.b.a. next update",
+    hvi = 1000, verlies_drempel = 1000,
     cf = 9, cb = 1, schijf_2 = as.numeric(NA), 
-    schijf_3 = as.numeric(NA), tarief_1 = 34, tarief_2 = as.numeric(NA), tarief_3 = as.numeric(NA))
+    schijf_3 = as.numeric(NA), tarief_1 = 34, 
+    tarief_2 = as.numeric(NA), tarief_3 = as.numeric(NA))
   
   # vergelijking data
   comparison_data = data.frame(naam_vergelijking = "Vergelijking", variant = "Voorbeeld", budget_raming = "t.b.a. in future!!!", gini_grondslag = "t.b.a. next update", 
@@ -387,7 +322,27 @@ library(ids)
                                vermogen = 36500, aanwas = 1625.74, grondslag = 500, grondslag_perc = 30.76, spaargeld = 42300, finproduct = 7000, restbezit = 0, schuld = 12800, 
                                spaargeld_rendperc = 0.36, finproduct_rendperc = 6.17, restbezit_rendperc = 6.17, schuld_rendperc = 2.57)
   
-
+  # test dataset
+  #sampsize = 12000
+  #test_data[[1]] = data.frame(
+  #  vermogen = sample(0:1000000, size = sampsize, replace = T),
+  #  rendement = sample(0:7, size = sampsize, replace = T),
+  #  jaar = rep(2026, sampsize))
+  
+  #test_data[[1]]$aanwas = test_data[[1]]$grondslag * test_data[[1]]$rendement
+  
+  #for (i in c(2:length(2026:2045))){
+    
+  #  jaar = c(2027:2045)[i]
+  #  vorig_jaar = test_data[[i-1]]
+    
+  #  test_data[[i]] = data.frame(
+  #    vermogen = update_value(current_value = vorig_jaar$vermogen, perc_change = vorig_jaar$rendement)
+  #  ) %>%
+  #    mutate(rendement = ) 
+  #}
+  
+  
 # USER INTERFACE
 
 ui = fluidPage(
@@ -1089,7 +1044,7 @@ server = function(input, output) {
    
             
     ################################## TABPANEL 2 -- WINDOW 1 #################################
-   
+    
     
     # VOORGEPROGRAMEERDE STANDAARD DATA 
     variant_data_input = reactiveVal(variant_data)
@@ -1099,7 +1054,7 @@ server = function(input, output) {
     
     gen_upload_variant_data = function(){
       upload_variant_data$data = readxl::read_xlsx(input$upload_data_variant$datapath) %>%
-        setNames(c("variant", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
+        setNames(c("variant", "budgettaire opbrengst",  "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
     }
     
     observeEvent(input$upload_data_variant, {upload_variant_data$data = gen_upload_variant_data()})
@@ -1110,7 +1065,7 @@ server = function(input, output) {
       inFile = input$upload_data_variant
       if (is.null(inFile)){data = variant_data_input()} else {data = upload_variant_data$data}
       
-      data %>% setNames(c("variant", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+      data %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
       
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
     
@@ -1118,7 +1073,13 @@ server = function(input, output) {
     observeEvent(input$reset_data_variant, {
       
       if (is.null(input$upload_data_variant)){variant_data_input() %>% filter(row_number() %in% -1) %>% variant_data_input()
-      } else {upload_variant_data$data =  data.frame(variant = as.character(), hvi = as.numeric(), verlies_drempel = as.numeric(),
+      } else {upload_variant_data$data =  data.frame(variant = as.character(), 
+                                                     budget_raming = as.character(),
+                                                     gini_grondslag = as.character(), 
+                                                     gini_belasting = as.character(), 
+                                                     opbrengst_stabiliteit = as.character(), 
+                                                     prox_winstbelasting = as.character(), 
+                                                     hvi = as.numeric(), verlies_drempel = as.numeric(),
                                                      cf = as.numeric(), cb = as.numeric(), schijf_2 = as.numeric(), 
                                                      schijf_3 = as.numeric(), tarief_1 = as.numeric(), tarief_2 = as.numeric(),
                                                      tarief_3 = as.numeric())}
@@ -1172,6 +1133,11 @@ server = function(input, output) {
       
       dat = data.frame(
         variant = naam_variant_new,
+        budget_raming = "t.b.a. in future!!!",
+        gini_grondslag = "t.b.a. next update", 
+        gini_belasting = "t.b.a. update", 
+        opbrengst_stabiliteit = "t.b.a. next update",
+        prox_winstbelasting = "t.b.a. next update",
         hvi = isolate(input$hvi),
         verlies_drempel = isolate(input$verlies_drempel),
         cf = isolate(input$verlies_voor),
@@ -1188,7 +1154,7 @@ server = function(input, output) {
           variant_data_input()
       } else {
         
-        dat = dat %>% setNames(c("variant", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+        dat = dat %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
         upload_variant_data$data = upload_variant_data$data %>% 
           bind_rows(dat)   
       } 
@@ -1203,16 +1169,21 @@ server = function(input, output) {
       content = function(file) {
         write_xlsx(
           data.frame(
-            variant = as.character(),
-            hvi = as.numeric(),
-            verlies_drempel = as.numeric(),
-            cf = as.numeric(),
-            cb = as.numeric(),
-            schijf_2 = as.numeric(),
-            schijf_3 = as.numeric(),
-            tarief_1 = as.numeric(),
-            tarief_2 = as.numeric(),
-            tarief_3 = as.numeric()),
+            variant = "",
+            budget_raming = "niet invullen, little padawan",
+            gini_grondslag = "niet invullen, little padawan", 
+            gini_belasting = "niet invullen, little padawan", 
+            opbrengst_stabiliteit = "niet invullen, little padawan",
+            prox_winstbelasting = "niet invullen, little padawan",
+            hvi = NA,
+            verlies_drempel = NA,
+            cf = NA,
+            cb = NA,
+            schijf_2 = NA,
+            schijf_3 = NA,
+            tarief_1 = NA,
+            tarief_2 = NA,
+            tarief_3 = NA),
           file)
       })
     
@@ -1559,15 +1530,15 @@ server = function(input, output) {
                     belasting[[row]] = sum(temp$belasting, na.rm = T)
                   }
                   
-                  belasting = mean(do.call(rbind, belasting), na.rm = T)
+                  belasting = sum(do.call(rbind, belasting), na.rm = T)
                   
                   # percentage belasting tov aanwas
-                  if(mean(dat_case_temp$aanwas, na.rm = T) > 0) {belasting_perc = round(((belasting / mean(dat_case_temp$aanwas, na.rm = T))*100), 2)} else {belasting_perc = 0}
+                  if(sum(dat_case_temp$aanwas, na.rm = T) > 0) {belasting_perc = round(((belasting / sum(dat_case_temp$aanwas, na.rm = T))*100), 2)} else {belasting_perc = 0}
                   # percentage verrekend verlies tov totaal verlies
-                  if (nrow(subset(dat_case_temp, aanwas < 0) > 0)){verlies = mean(subset(dat_case_temp, aanwas < 0)$aanwas, na.rm = T)} else {verlies = 0}
-                  if (verlies > 0){verrekend_verlies_perc = (mean(dat_case_verlies$cf, na.rm = T) + mean(dat_case_verlies$cb, na.rm = T))/verlies} else {verrekend_verlies_perc = 0}
+                  if (nrow(subset(dat_case_temp, aanwas < 0) > 0)){verlies = sum(subset(dat_case_temp, aanwas < 0)$aanwas, na.rm = T)} else {verlies = 0}
+                  if (verlies > 0){verrekend_verlies_perc = (sum(dat_case_verlies$cf, na.rm = T) + sum(dat_case_verlies$cb, na.rm = T))/verlies} else {verrekend_verlies_perc = 0}
                   # percentage grondslag tov aanwas
-                  if (mean(dat_case_verlies$grondslag, na.rm = T) > 0){grondslag_perc = round((mean(dat_case_verlies$grondslag, na.rm = T)/mean(dat_case_temp$aanwas, na.rm = T))*100, 2)} else {grondslag_perc = 0}
+                  if (sum(dat_case_verlies$grondslag, na.rm = T) > 0){grondslag_perc = round((sum(dat_case_verlies$grondslag, na.rm = T)/sum(dat_case_temp$aanwas, na.rm = T))*100, 2)} else {grondslag_perc = 0}
                   
                   
                   # berekeningen
@@ -1596,17 +1567,17 @@ server = function(input, output) {
                                    risico = round(mean(dat_case_temp$risico, na.rm = T), 2), 
                                    belasting = round(belasting, 2), 
                                    belasting_perc = belasting_perc, 
-                                   verlies = abs(round(mean(subset(dat_case_verlies, aanwas < 0)$aanwas, na.rm = T), 2)),
-                                   verrekend_verlies = round(mean(dat_case_verlies$cf, na.rm = T) +  mean(dat_case_verlies$cb, na.rm = T), 2), 
+                                   verlies = abs(round(sum(subset(dat_case_verlies, aanwas < 0)$aanwas, na.rm = T), 2)),
+                                   verrekend_verlies = round(sum(dat_case_verlies$cf, na.rm = T) +  sum(dat_case_verlies$cb, na.rm = T), 2), 
                                    verrekend_verlies_perc = verrekend_verlies_perc,
-                                   vermogen = round(mean(dat_case_temp$vermogen, na.rm = T), 2), 
-                                   aanwas = round(mean(dat_case_temp$aanwas, na.rm = T), 2), 
-                                   grondslag = round(mean(subset(dat_case_verlies, grondslag > 0)$grondslag, na.rm = T), 2), 
+                                   vermogen = round(sum(dat_case_temp$vermogen, na.rm = T), 2), 
+                                   aanwas = round(sum(dat_case_temp$aanwas, na.rm = T), 2), 
+                                   grondslag = round(sum(subset(dat_case_verlies, grondslag > 0)$grondslag, na.rm = T), 2), 
                                    grondslag_perc = grondslag_perc, 
-                                   spaargeld = round(mean(dat_case_temp$spaargeld, na.rm = T), 2), 
-                                   finproduct = round(mean(dat_case_temp$finproduct, na.rm = T), 2), 
-                                   restbezit = round(mean(dat_case_temp$restbezit, na.rm = T), 2), 
-                                   schuld = round(mean(dat_case_temp$schuld, na.rm = T), 2), 
+                                   spaargeld = round(sum(dat_case_temp$spaargeld, na.rm = T), 2), 
+                                   finproduct = round(sum(dat_case_temp$finproduct, na.rm = T), 2), 
+                                   restbezit = round(sum(dat_case_temp$restbezit, na.rm = T), 2), 
+                                   schuld = round(sum(dat_case_temp$schuld, na.rm = T), 2), 
                                    spaargeld_rendperc = round(mean(dat_case_temp$spaargeld_rendperc, na.rm = T), 2), 
                                    finproduct_rendperc = round(mean(dat_case_temp$finproduct_rendperc, na.rm = T), 2), 
                                    restbezit_rendperc = round(mean(dat_case_temp$restbezit_rendperc, na.rm = T), 2), 
@@ -1870,372 +1841,6 @@ server = function(input, output) {
     
     
    
-    
-    # 2.1. TEKST GRONDSLAG EN BELASTING
-    
-    # Switch dataset based on case type
-    microdata_2 <- reactive({
-      
-      max_id = subset(aggregate(aanwas ~ id, data = subset(case_data(), jaar == isolate(as.numeric(input$jaar_nu))), FUN = sum), aanwas == max(aanwas))$id
-      min_id = subset(aggregate(aanwas ~ id, data = subset(case_data(), jaar == isolate(as.numeric(input$jaar_nu))), FUN = sum), aanwas == min(aanwas))$id
-      
-      if (input$case_type_2 == "mediaan"){dataset = get_median(data = case_data(), year = isolate(as.numeric(input$jaar_nu)), period = c(2026:2045))}
-      else if (input$case_type_2 == "meest recent"){dataset <- subset(case_data(), id == max(case_data()$id))}
-      else if (input$case_type_2 == "hoogste aanwas"){dataset <- subset(case_data(), id == max_id)}
-      else if (input$case_type_2 == "laagste aanwas"){dataset <- subset(case_data(), id == min_id)}
-      return(dataset)
-    })
-    
-    
-    
-    # 2.2. KNOP NIEUWE CASUS 
-    
-    
-    
-    
-    # 2.4. PLOT GRONDSLAG
-    output$belasting_plot_1 = renderPlot({
-      
-      
-      df = subset(
-        verreken_verlies(microdata_2(),hvi = input$hvi, cf = input$verlies_voor, cb = input$verlies_achter,drempel = input$verlies_drempel), 
-        jaar == as.numeric(input$jaar_nu))
-      
-      
-      # als aanwas groter dan hvi
-      if (df$aanwas > input$hvi){
-        
-        data = data.frame(
-          group = c( "(1) HVI", "(2) Verliesverrekening", "(3) Grondslag"),
-          value = c(input$hvi, df$cf, df$grondslag))
-        
-        data$group = paste0(data$group, " (", number_to_money(data$value), ")")
-        
-        data <- data %>% 
-          arrange(desc(group)) %>%
-          mutate(prop = value / sum(data$value) *100) %>%
-          mutate(ypos = cumsum(prop)- 0.5*prop )  
-        
-        ggplot(data, aes(x="", y=prop, fill=group)) +
-          geom_bar(stat="identity", width=1, color="black", size = 1) +
-          coord_polar("y", start=0) +
-          theme_void() + 
-          geom_text(aes(y = ypos, label = paste0(round(prop), "%")), color = "black", size=6, fontface = "bold") +
-          scale_fill_manual(values = c("white", "grey90", "grey70", "grey40")) + 
-          theme(axis.ticks=element_blank(),  
-                axis.title=element_blank(),  
-                axis.text.y=element_blank(), 
-                legend.title = element_blank(),
-                legend.key.size = unit(1.25, 'cm'), 
-                legend.key.height = unit(1.25, 'cm'), 
-                legend.key.width = unit(1.25, 'cm'), 
-                legend.text = element_text(size=14)) 
-        
-      } else if (df$aanwas > 0 & df$aanwas < input$hvi){
-        
-        data = data.frame(
-          group = c( "(1) HVI", "(2) Verliesverrekening", "(3) Grondslag"),
-          value = c(df$aanwas, 0, 0))
-        
-        data$group = paste0(data$group, " (", number_to_money(data$value), ")")
-        
-        data <- data %>% 
-          arrange(desc(group)) %>%
-          mutate(prop = value / sum(data$value) *100) %>%
-          mutate(ypos = cumsum(prop)- 0.5*prop )  
-        
-        
-        ggplot(data, aes(x="", y=prop, fill=group)) +
-          geom_bar(stat="identity", width=1, color="black", size = 1) +
-          coord_polar("y", start=0) +
-          theme_void() + 
-          geom_text(aes(y = ypos, label = paste0(round(prop), "%")), color = "black", size=6, fontface = "bold") +
-          scale_fill_manual(values = c("white", "grey90", "grey70", "grey40")) + 
-          theme(axis.ticks=element_blank(),  
-                axis.title=element_blank(),  
-                axis.text.y=element_blank(), 
-                legend.title = element_blank(),
-                legend.key.size = unit(1.25, 'cm'), 
-                legend.key.height = unit(1.25, 'cm'), 
-                legend.key.width = unit(1.25, 'cm'), 
-                legend.text = element_text(size=14)) 
-        
-      } else {
-        
-        ggplot() + 
-          geom_text(aes(x = 0, y = 0, label = "Aanwas is negatief. Grondslag berekening is n.v.t."), fontface = "bold") + 
-          theme_void()
-        
-      }
-      
-      
-    }, bg="transparent", width = 500, height = 400, res = 72)
-    
-    # 2.5. PLOT BELASTING
-    output$belasting_plot_2 = renderPlot({
-      
-      df = subset(
-        verreken_verlies(microdata_2(), hvi = input$hvi, cf = input$verlies_voor, cb = input$verlies_achter, drempel = input$verlies_drempel), 
-        jaar == as.numeric(input$jaar_nu))
-      
-      # als aanwas groter dan hvi
-      if (df$aanwas > input$hvi){
-        
-        aanwas_belast = df$grondslag
-        
-        belasting = bepaal_belasting(aanwas_belast, schijf_2 = input$schijf_2, schijf_3 = input$schijf_3, tarief_1 = input$tarief_1, tarief_2 = input$tarief_2, tarief_3 = input$tarief_3)
-        belasting = data.frame(
-          schijf = paste0("Schijf ", rep(c(1:3),2)),
-          grens = c(0, input$schijf_2, input$schijf_3),
-          tarief = c(input$tarief_1, input$tarief_2, input$tarief_3),
-          type = c(rep("Aanwas", 3), rep("Belasting", 3)), 
-          waarde = c(belasting$aanwas, belasting$belasting)
-        )
-        
-        if (!is.na(belasting$grens[3])){
-          brks = c(0, belasting$grens[2], belasting$grens[3])
-          labs = c(paste0("S1: ", belasting$tarief[1], "% v.a. €", belasting$grens[1]), paste0("S2: ", belasting$tarief[2], "% v.a. €", belasting$grens[2]), paste0("S3: ", belasting$tarief[3], "% v.a. €", belasting$grens[3]))
-        } else if (is.na(belasting$grens[3]) & !is.na(belasting$grens[2])){
-          brks = c(0, belasting$grens[2])
-          labs = c(paste0("S1: ", belasting$tarief[1], "% v.a. €", belasting$grens[1]), paste0("S2: ", belasting$tarief[2], "% v.a. €", belasting$grens[2]))
-        } else {
-          brks = 0
-          labs = c(paste0("S1: ", belasting$tarief[1], "% v.a. €", belasting$grens[1]))
-        }
-        
-        
-        if (aanwas_belast > 0){
-        ggplot() +
-          geom_bar(data = belasting, aes(x=type, y=waarde, fill=factor(schijf)), stat="identity", width=0.9, color="black", size = 1, position = position_stack(reverse = TRUE)) +
-          geom_text(data = data.frame(x = c("Aanwas", "Belasting"), y = c(sum(belasting$waarde[1:3], na.rm = T), sum(belasting$waarde[4:6], na.rm = T))), aes(x = x, y = y, label = paste0("€", y, " (", round((y/y[1])*100), "%)")), vjust = -0.9, fontface = "bold") + 
-          scale_fill_manual(values = c("white", "grey70", "grey40")) + 
-          scale_y_continuous(breaks = brks, labels = labs, sec.axis = sec_axis( trans=~.*1, name="Aanwas en belasting in €")) +
-          theme_minimal() + 
-          theme(axis.ticks=element_blank(),  
-                axis.title=element_blank(),  
-                axis.text = element_text(face = "bold", size = 14),
-                legend.title = element_blank(),
-                legend.position = "bottom", 
-                legend.key.size = unit(1.25, 'cm'), 
-                legend.key.height = unit(1.25, 'cm'), 
-                legend.key.width = unit(1.25, 'cm'), 
-                legend.text = element_text(size=14),
-                panel.grid = element_blank())
-        }
-        
-        
-      }}, bg="transparent", width = 500, height = 400, res = 72)
-    
-    
-    # 2.6 TABEL VARIANTEN 
-    
-    # initialiseer dataset
-    vergelijking = reactiveVal(variant_data)
-      
-    # toon lege dataset
-    #output$variant_data = renderDataTable(
-    #  datatable(vergelijking() %>%
-    #              `colnames<-` (c("variant", "jaar", "hvi", "verlies drempel", "CF", "CB", "S1 (€)", "S2 (€)", "S3 (€)", "T1 (%)", "T2 (%)", "T3 (%)", "persoon id", "aanwas", "verrekend verlies (€)", "verrekend verlies (%)", "grondslag", "grondslag OBW", "belasting (€)", "belasting OBW (€)", "belasting (%)", "belasting OBW (%)")),
-    #            options = list(pageLength = 14, scrollX = TRUE))
-    #)
-    
-    # voeg nieuwe variant toe 
-   observeEvent(input$add_variant2, {
-      
-      df = verreken_verlies(microdata_2(), hvi = input$hvi, cf = input$verlies_voor, cb = input$verlies_achter, drempel = input$verlies_drempel)
-      jaar = as.numeric(input$jaar_nu)
-      aanwas_belast = df$grondslag[df$jaar == jaar]
-      belasting = bepaal_belasting(aanwas_belast, schijf_2 = input$schijf_2, schijf_3 = input$schijf_3, tarief_1 = input$tarief_1, tarief_2 = input$tarief_2, tarief_3 = input$tarief_3)
-      naam_variant = isolate(input$naam_variant)
-      if (naam_variant %in% vergelijking()$variant){naam_variant = as.character(random_id(n = 1, bytes = 4, use_openssl = TRUE))} 
-      
-      # OBW 
-      grondslag_obw = round(overbrug_me(df$spaargeld[df$jaar == jaar], df$finproduct[df$jaar == jaar], df$restbezit[df$jaar == jaar], df$schuld[df$jaar == jaar], type = "aanwas na hvv"))
-      aanwas_voor_hvv = round(overbrug_me(df$spaargeld[df$jaar == jaar], df$finproduct[df$jaar == jaar], df$restbezit[df$jaar == jaar], df$schuld[df$jaar == jaar], type = "aanwas voor hvv"))
-      belasting_obw = round(sum(bepaal_belasting(grondslag_obw, schijf_2 = input$schijf_2, schijf_3 = input$schijf_3, tarief_1 = input$tarief_1, tarief_2 = input$tarief_2, tarief_3 = input$tarief_3)$belasting, na.rm = T))
-      # HIER AANPASSEN!!!
-      # HIER AANPASSEN!!!
-      # HIER AANPASSEN!!!
-      
-      newrow = data.frame(
-        variant = naam_variant,
-        jaar = jaar,
-        hvi = isolate(input$hvi),
-        verlies_drempel = isolate(input$verlies_drempel),
-        cf = isolate(input$verlies_voor),
-        cb = isolate(input$verlies_achter),
-        schijf_1 = 0,
-        schijf_2 = isolate(input$schijf_2),
-        schijf_3 = isolate(input$schijf_3),
-        tarief_1 = isolate(input$tarief_1),
-        tarief_2 = isolate(input$tarief_2),
-        tarief_3 = isolate(input$tarief_3),
-        id = df$id[1], 
-        aanwas = df$aanwas[df$jaar == jaar],
-        vv = sum(df$cb) + sum(df$cf),
-        vv_perc = ((sum(df$cb) + sum(df$cf)) / abs(sum(subset(df, aanwas < 0)$aanwas)))*100,
-        grondslag = df$grondslag[df$jaar == jaar],
-        grondslag_forfait = grondslag_obw,
-        belasting = round(sum(belasting$belasting, na.rm = T), 2),
-        belasting_forfait = belasting_obw,
-        belasting_perc = round((sum(belasting$belasting, na.rm = T) / sum(df$aanwas))*100,2),
-        belasting_forfait_perc = round((belasting_obw / aanwas_voor_hvv)*100,2)
-      )
-      
-      # update data
-      vergelijking() %>%
-        rbind(., newrow) %>%
-        vergelijking()
-    })
-    
-    
-    output$vergelijking = renderDataTable(
-      datatable(
-        vergelijking(), 
-        options = list(pageLength = 4))
-    )
-    
-    
-    # 2.7. KNOP RESET DATA
-    observeEvent(input$reset_variant_data, {
-      vergelijking() %>% 
-        filter(row_number() %in% -100) %>% 
-        vergelijking()
-    })   
-    
-    # 2.8. DOWNLOAD DATA VARIANTEN
-    output$download_varianten = downloadHandler(
-      filename = function() { 
-        paste("sandbox3_varianten_", Sys.Date(), ".xlsx", sep="")
-      },
-      content = function(file) {
-        write_xlsx(vergelijking(), file)
-      })
-    
-     
-  
-    
-    # 3. WELKE VARIANT IS HET MEEST VOORDELIG VOOR BELASTINGPLICHTIGE?
-    
-    # 3.1. INPUT TABELLEN
-    output$case_selection = DT::renderDataTable(select(subset(case_data(), jaar == 2036), c("omschrijving", "vermogen", "aanwas")), selection = 'single', server = FALSE, rownames = F, options = list(paging =TRUE, pageLength = 7, scrollX = TRUE))
-    output$variant_selection = DT::renderDataTable(select(vergelijking(), c("variant", "hvi", "verlies_drempel", "cf", "cb", "schijf_1", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3")) %>%
-                                                   setNames(c("variant", "hvi", "verlies drempel", "CF", "CB", "S1", "S2", "S3", "T1", "T2", "T3")), selection = 'single', server = FALSE, rownames = F, options = list(paging =TRUE, pageLength = 7, scrollX = TRUE))
-    
-    # 3.2. TEKST 
-    output$variant_text = renderText({
-      
-      "Of een variant al dan niet gunstig uitpakt voor belastingplichtige is afhankelijk van een aantal factoren en de interactie tussen deze factoren. Zo resulteert een hoog HVI in een lage belasting, maar zorgt het er eveneens voor dat belastingplichtigen veel minder vaak een beroep kunnen doen op verliesverrekening. 
-      Ook verliesverrekening bijvoorbeeld zorgt voor een lagere afdracht, maar de omvang hiervan is dan weer afhankelijk van of er een progressief tarief is of niet. 
-      Daarnaast dient er, naast de belastingplichtige, ook rekening te worden gehouden met de haalbaarheid van de variant voor de belastingdienst. Verliesverrekening zorgt voor een hogere last, terwijl een hoger HVI en verliesverrekenings drempel juist voor een lagere last zorgt. 
-      De onderstaande plots bieden echter enkel informatie over de impact van de varianten op de belastingplichtigen.  
-      "
-      
-    })
-    
-    
-    # 3.3. PLOTS 
-    
-    # switch yvar based on input 
-    yvar = reactive({
-      
-      if (input$yvar == "grondslag (€)"){yvar = "grondslag"}
-      else if (input$yvar == "grondslag (% aanwas)"){yvar = "grondslag_perc"} 
-      else if (input$yvar == "verrekend verlies (€)"){yvar = "vv"} 
-      else if (input$yvar == "verrekend verlies (% verlies)"){yvar = "vv_perc"} 
-      else if (input$yvar == "belasting (€)"){yvar = "belasting"} 
-      else if (input$yvar == "belasting (% aanwas)"){yvar = "belasting_perc"} 
-      
-      return(yvar)   
-    })
-    
-    
-    
-    # vergelijking varianten
-    output$compare_variants_plot2 = output$compare_variants_plot = renderPlot({
-      
-      if (length(input$variant_selection_rows_selected) > 0 & length(input$case_selection_rows_selected) > 0){
-        newdata = process_selection(
-          variant_selection = input$variant_selection_rows_selected, 
-          case_selection = input$case_selection_rows_selected, 
-          variant_data =  vergelijking(),
-          case_data = case_data(),
-          yvar = yvar(), 
-          time = input$timevar)
-        
-        if (grepl("\u20AC", input$yvar, fixed = TRUE)){newdata$unit = number_to_money(newdata$y)} else {newdata$unit = paste0(newdata$y, "%")}
-        
-        newdata$facet = paste0("belastingplichtige ", newdata$person_id, " (aanwas = ", number_to_money(newdata$aanwas), ")")
-        newdata$x = paste0("variant ", newdata$x, "\n(hvi = ", number_to_money(newdata$hvi), ")")
-        newdata$vjust = -0.9; if (newdata$y < 0){newdata$vjust = 1.5}
-          
-          ggplot(data = newdata, aes(x = x, y = y, label = unit, fill = x, vjust = vjust)) + 
-            geom_hline(yintercept = max(newdata$y) + max(newdata$y)/10, color = "white", alpha = 0) + 
-            geom_bar(stat="identity", width=0.75, color="black", size = 1) +
-            geom_text(aes(x = x, y = y, label = unit, vjust = vjust), fontface = "bold") + 
-            scale_fill_grey() + 
-            theme_minimal() + 
-            theme(legend.position = "None",
-                  axis.ticks=element_blank(),  
-                  axis.title=element_blank(),  
-                  axis.text.y = element_blank(),
-                  axis.text.x = element_text(face = "bold", size = 12, angle = 90, hjust = 1),
-                  panel.grid = element_blank()) + 
-            
-            facet_wrap(~ facet, labeller = label_wrap_gen(multi_line = TRUE))
-      } else {
-        
-        ggplot() + 
-          geom_text(aes(x = 0, y = 10, label = "Selecteer belastingplichtigen en varianten om een plot te genereren."), fontface = "bold") + 
-          ylim(0,10) + 
-          theme_void()
-        
-      }
-      
-    }, bg="transparent", width = 500, height = 600, res = 72)
-    
-    # vergelijking belastingplichtigen
-    output$compare_individuals_plot2 = renderPlot({
-      
-      if (length(input$variant_selection_rows_selected) > 0 & length(input$case_selection_rows_selected) > 0){
-        newdata = process_selection(
-          variant_selection = input$variant_selection_rows_selected, 
-          case_selection = input$case_selection_rows_selected, 
-          variant_data =  vergelijking(),
-          case_data = case_data(),
-          yvar = yvar(), 
-          time = input$timevar)
-        
-        if (grepl("\u20AC", input$yvar, fixed = TRUE)){newdata$unit = number_to_money(newdata$y)} else {newdata$unit = paste0(newdata$y, "%")}
-        
-        newdata$facet = paste0("belastingplichtige ", newdata$person_id, "\n(aanwas = ", number_to_money(newdata$aanwas), ")")
-        newdata$x = paste0("variant ", newdata$x, "\n(hvi = ", number_to_money(newdata$hvi), ")")
-        newdata$vjust = -0.9; if (newdata$y < 0){newdata$vjust = 1.5}
-        
-        ggplot(data = newdata, aes(x = facet, y = y, label = unit, fill = facet, vjust = vjust)) + 
-          geom_hline(yintercept = max(newdata$y) + max(newdata$y)/10, color = "white", alpha = 0) + 
-          geom_bar(stat="identity", width=0.75, color="black", size = 1) +
-          geom_text(aes(x = facet, y = y, label = unit, vjust = vjust), fontface = "bold") + 
-          scale_fill_grey() + 
-          theme_minimal() + 
-          theme(legend.position = "None",
-                axis.ticks=element_blank(),  
-                axis.title=element_blank(),  
-                axis.text.y = element_blank(),
-                axis.text.x = element_text(face = "bold", size = 12, angle = 90, hjust = 1),
-                panel.grid = element_blank()) + 
-          
-          facet_wrap(~ x, labeller = label_wrap_gen(multi_line = TRUE))
-      } else {
-        
-        ggplot() + 
-          geom_text(aes(x = 0, y = 10, label = "Selecteer belastingplichtigen en varianten om een plot te genereren."), fontface = "bold") + 
-          ylim(0,10) + 
-          theme_void()
-        
-      }
-      
-    }, bg="transparent", width = 500, height = 600, res = 72)
     
     
   
