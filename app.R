@@ -11,7 +11,10 @@ library(ggforce)
 library(data.table)
 library(plyr)
 library(ids)
+library(ineq)
 
+# foutmeldingen
+# als schijfgrens lager dan hvi
 
 # SET BASE MULTIPLIERS 
   
@@ -282,6 +285,61 @@ library(ids)
     return(aanwas)
   }
   
+  # functie om objectieve variant statistieken te genereren
+  variant_stats = function(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
+    
+    # test data
+    test = select(readxl::read_xlsx("/Users/sjifradeleeuw/Downloads/testdata.xlsx"),c("id", "jaar", "aanwas"))
+    
+    test_new = list()
+    test_ideal = list()
+    for (i in 1:length(unique(test$id))){
+      
+      test_id = unique(test$id)[i]
+      temp = verreken_verlies(subset(test, id == test_id), hvi = hvi, cf = cf, cb = cb, drempel = vv_drempel)
+      temp_ideal = verreken_verlies(subset(test, id == test_id), hvi = hvi, cf = 20, cb = 20, drempel = 0)
+      
+      temp$belasting = NA
+      for (j in 1:nrow(temp)){
+        temp$belasting[j] = sum(bepaal_belasting(temp$grondslag[j], schijf_2 = s2, schijf_3 = s3, tarief_1 = t1, tarief_2 = t2, tarief_3 = t3)$belasting, na.rm = T)
+        temp_ideal$belasting[j] = sum(bepaal_belasting(temp_ideal$grondslag[j], schijf_2 = s2, schijf_3 = s3, tarief_1 = t1, tarief_2 = t2, tarief_3 = t3)$belasting, na.rm = T)
+      }
+      
+      test_new[[i]] = temp
+      test_ideal[[i]] = temp_ideal
+      
+    }
+    
+    test_new = do.call(rbind, test_new); rm(test)
+    test_new_agg = aggregate(.~id, test_new, sum)
+    test_ideal = do.call(rbind, test_ideal)
+    
+    # budgettaire raming
+    scale = 12000000 / nrow(test_new_agg)
+    budget_raming = sum(test_new$belasting, na.rm = T)*scale
+    
+    # grondslag (on)gelijkheid
+    test_new$grondslag_perc = 0
+    test_new$grondslag_perc[test_new$aanwas > 0] = (test_new$grondslag[which(test_new$aanwas > 0)] / test_new$aanwas[which(test_new$aanwas > 0)])*100
+    
+    gini_grondslag = ineq(test_new$grondslag_perc[which(test_new$jaar == 2045)],type="Gini")
+    
+    # belasting (on)gelijkheid
+    test_new$belasting_perc = 0
+    test_new$belasting_perc[test_new$aanwas > 0] = (test_new$belasting[which(test_new$aanwas > 0)] / test_new$belasting[which(test_new$aanwas > 0)])*100
+    
+    gini_belasting = ineq(test_new$belasting_perc[which(test_new$jaar == 2045)],type="Gini")
+    
+    # opbrengst instabiliteit 
+    gini_opbrengst = ineq(aggregate(belasting~jaar, data = test_new, FUN = sum)$belasting,type="Gini")
+    
+    # overbelasting
+    overbelasting = budget_raming - sum(test_ideal$belasting, na.rm = T)*scale
+    
+    return(list(budget_raming = budget_raming, gini_grondslag = gini_grondslag, gini_belasting = gini_belasting, gini_opbrengst = gini_opbrengst, overbelasting = overbelasting))
+    
+    }    
+  
 # DATA 
 
   # base values 
@@ -322,25 +380,7 @@ library(ids)
                                vermogen = 36500, aanwas = 1625.74, grondslag = 500, grondslag_perc = 30.76, spaargeld = 42300, finproduct = 7000, restbezit = 0, schuld = 12800, 
                                spaargeld_rendperc = 0.36, finproduct_rendperc = 6.17, restbezit_rendperc = 6.17, schuld_rendperc = 2.57)
   
-  # test dataset
-  #sampsize = 12000
-  #test_data[[1]] = data.frame(
-  #  vermogen = sample(0:1000000, size = sampsize, replace = T),
-  #  rendement = sample(0:7, size = sampsize, replace = T),
-  #  jaar = rep(2026, sampsize))
-  
-  #test_data[[1]]$aanwas = test_data[[1]]$grondslag * test_data[[1]]$rendement
-  
-  #for (i in c(2:length(2026:2045))){
-    
-  #  jaar = c(2027:2045)[i]
-  #  vorig_jaar = test_data[[i-1]]
-    
-  #  test_data[[i]] = data.frame(
-  #    vermogen = update_value(current_value = vorig_jaar$vermogen, perc_change = vorig_jaar$rendement)
-  #  ) %>%
-  #    mutate(rendement = ) 
-  #}
+ 
   
   
 # USER INTERFACE
@@ -499,11 +539,21 @@ ui = fluidPage(
                     tabPanel(title = "Bewerk dataset",
                       fluidPage(HTML("<br>"),
                         column(10, HTML("<b>!!! Instructie !!!</b> Specificeer in de linker (grijze) kolom de variant die u wil doorrekenen. 
-                        Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u niet tevreden met de dataset? 
+                        Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u ontevreden met de dataset? 
                         In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>variant verwijderen</em>.
                         Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
                         deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
-                        U kunt vervolgens bekijken welke effecten uw variant heeft op een enkele belastingplichtige onder de tab <em>inspecteer variant</em>. "),
+                        De tabel voorziet daarnaast in een aantal statistieken op basis waarvan u de varianten (objectief) kunt vergelijken, met name:
+                              <br>
+                              <ul>
+                              <li>budgettaire opbrengst, m.n. de omvang van de opbrengst (in mln.);</li>
+                              <li>grondslag ongelijkheid, m.n. de mate waarin burgers met dezelfde aanwas een andere grondslag hebben (0-1);</li>
+                              <li>belasting ongelijkheid, m.n. de mate waarin burgers met dezelfde aanwas een andere belasting betalen (0-1);</li>
+                              <li>bugdettaire instabiliteit, m.n. de mate waarin opbrengst ongelijk is over de jaren heen (0-1). </li>
+                              <li>overbelasting, m.n. de omvang van de opbrengst (in mln.) die te wijden is aan de inperkingen op verliesverrekening. </li>
+                              </ul>
+                        
+                        U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>."),
                         HTML("<br>"), 
                         fluidRow(
                           column(3, h5("download template"), downloadButton("download_template_variant", label = "download template")),
@@ -547,17 +597,7 @@ ui = fluidPage(
                               column(10, 
                               HTML("<b>!!! Instructie !!!</b> Bepaal in de linker (grijze) kolom welke belastingplichtigen en varianten u wilt vergelijken.
                               De tool rekent dan elke combinatie van de selecties voor u door voor de variabelen grondslag, verrekend verlies en belasting.
-                              De dataset presenteert vervolgens een gemiddelde van alle jaren (2026-2045) voor elke belastingplichtige voor elk van deze
-                              variabelen. Dit betekent dat belastingplichtigen met dezelfde aanwas maar met verschillende fluctuaties in rendement een 
-                              verschillende grondslag hebben of belasting betalen. De tabel voorziet daarnaast in een aantal statistieken op basis waarvan
-                              u de varianten (objectief) kunt vergelijken, met name:
-                              <br>
-                              <ul>
-                              <li>grondslag gelijkheid, m.n. de mate waarin burgers met dezelfde aanwas dezelfde grondslag hebben (0-100);</li>
-                              <li>belasting gelijkheid, m.n. de mate waarin burgers met dezelfde aanwas dezelfde belasting betalen (0-100);</li>
-                              <li>bugdettaire stabiliteit, m.n. de mate waarin opbrengst constant is over de jaren heen (0-100). </li>
-                              <li>proximiteit winstbelasting, m.n. de mate waarin verliezen kunnen verrekend (0-100). </li>
-                              </ul>
+                              
                               Bent u niet tevreden met de dataset? 
                               In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>rij verwijderen</em>.
                               Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
@@ -920,7 +960,7 @@ server = function(input, output) {
       data = subset(data, jaar == 2026)
       select(data, c("omschrijving")) 
     
-    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 50, scrollX = T))
+    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 19, scrollX = T))
     
     # TEKSTUELE OMSCHRIJVING GRONDSLAG
     
@@ -1054,7 +1094,7 @@ server = function(input, output) {
     
     gen_upload_variant_data = function(){
       upload_variant_data$data = readxl::read_xlsx(input$upload_data_variant$datapath) %>%
-        setNames(c("variant", "budgettaire opbrengst",  "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
+        setNames(c("variant", "budgettaire opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
     }
     
     observeEvent(input$upload_data_variant, {upload_variant_data$data = gen_upload_variant_data()})
@@ -1065,7 +1105,7 @@ server = function(input, output) {
       inFile = input$upload_data_variant
       if (is.null(inFile)){data = variant_data_input()} else {data = upload_variant_data$data}
       
-      data %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+      data %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
       
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
     
@@ -1154,7 +1194,7 @@ server = function(input, output) {
           variant_data_input()
       } else {
         
-        dat = dat %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+        dat = dat %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
         upload_variant_data$data = upload_variant_data$data %>% 
           bind_rows(dat)   
       } 
@@ -1453,7 +1493,7 @@ server = function(input, output) {
     output$comparison_data = renderDataTable({
       
       comparison_data() %>%
-        setNames(c("vergelijking", "variant", "raming opbrengst", "grondslag gelijkheid", "belasting gelijkheid", "opbrengst stabiliteit", "proximiteit winstbelasting",
+        setNames(c("vergelijking", "variant", "raming opbrengst", "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting",
                    "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %", "belastingplichtige", "risico", "belasting €", 
                    "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)",
                    "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
