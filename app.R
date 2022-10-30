@@ -1509,7 +1509,7 @@ server = function(input, output) {
       data = subset(data, jaar == 2026)
       select(data, c("omschrijving")) 
       
-    }, server = F, rownames = F, options = list(paging =T, pageLength = 7, scrollX = T))
+    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 7, scrollX = T))
     
     # SELECTEER VARIANT
     output$select_variant_micro = renderDataTable({
@@ -1545,11 +1545,12 @@ server = function(input, output) {
       if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
       variant = variant_dat[input$select_variant_micro_rows_selected, "variant"]
       variant = as.character(variant[1])
-      variant_dat = subset(variant_dat, omschrijving == variant)
+      variant_dat = subset(variant_dat, variant == variant)
       
       # case data
       if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
-      omschrijving = case_dat[input$select_case_micro_rows_selected, "omschrijving"]
+      omschrijving = subset(case_dat, jaar == 2026)
+      omschrijving = omschrijving[input$select_case_micro_rows_selected, "omschrijving"]
       omschrijving = as.character(omschrijving[1]) 
       case_dat = subset(case_dat, omschrijving == omschrijving)
       
@@ -1586,72 +1587,36 @@ server = function(input, output) {
       
       input_jaar = input$plot_micro_jaar
       
-      if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
-      if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
-      
-      if (nrow(variant_data) > 0 & nrow(case_data) > 0){
-        
-        temp = list()
-        # elke case
-        for (i in c(1:length(unique(case_data$omschrijving)))){
-          # elke variant
-          for (j in c(1:nrow(variant_data))){
-            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
-          }}
-        
-        temp = do.call(rbind, temp) 
-      } else {
-        temp = variant_case_effects %>% filter(., row_number() %in% -1)
-      }
-      
       # variant data 
       if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
       variant = variant_dat[input$select_variant_micro_rows_selected, "variant"]
       variant = as.character(variant[1])
-      variant_dat = subset(variant_dat, omschrijving == variant)
+      variant_dat = subset(variant_dat, variant == variant)
       
       # case data
       if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
-      omschrijving = case_dat[input$select_case_micro_rows_selected, "omschrijving"]
-      omschrijving = as.character(omschrijving[1]) 
-      case_dat = subset(case_dat, omschrijving == omschrijving)
+      omschrijving_id = subset(case_dat, jaar == 2026)
+      omschrijving_id = omschrijving_id[input$select_case_micro_rows_selected, "omschrijving"]
+      omschrijving_id = as.character(omschrijving_id[1]) 
+      case_dat = subset(case_dat, omschrijving == omschrijving_id)
       
-      if (is.null(input$upload_data_variant)){dat_variant = variant_data_input()} else {dat_variant = upload_variant_data$data}
       
-      if (nrow(dat_variant) > 0){
-        
-        if (!is.null(input$variant_names_rows_selected)){
-          dat_variant_id = dat_variant %>%
-            filter(row_number() %in% input$variant_names_rows_selected) %>%
-            select("variant")
-          dat_variant_id = dat_variant_id$variant[nrow(dat_variant_id)]
-        } else {
-          dat_variant_id = dat_variant$variant[1]
-        }
-        
-        dat_variant = subset(dat_variant, variant == dat_variant_id)
-        
-        # PARAMETERS
-        naam_variant = dat_variant_id
-        hvi = dat_variant$hvi
-        vv_drempel = -dat_variant$verlies_drempel
-        vv_cf = input_jaar - dat_variant$cf - 0.5; if (vv_cf < 2026){vv_cf = 2026 - 0.5}
-        vv_cb = input_jaar + dat_variant$cb + 0.5; if (vv_cb > 2045){vv_cb = 2045 + 0.5}
-        s2 = dat_variant$schijf_2; s3 = dat_variant$schijf_3; 
-        t1 = dat_variant$tarief_1; t2 = dat_variant$tarief_2; t3 = dat_variant$tarief_3
+      # PARAMETERS
+        hvi = variant_dat$hvi
+        vv_drempel = -variant_dat$verlies_drempel
+        vv_cf = input_jaar - variant_dat$cf - 0.5; if (vv_cf < 2026){vv_cf = 2026 - 0.5}
+        vv_cb = input_jaar + variant_dat$cb + 0.5; if (vv_cb > 2045){vv_cb = 2045 + 0.5}
+        s2 = variant_dat$schijf_2; s3 = variant_dat$schijf_3; 
+        t1 = variant_dat$tarief_1; t2 = variant_dat$tarief_2; t3 = variant_dat$tarief_3
         
         schijf_aantal = 1; if (!is.na(t3) & !is.na(s3)){schijf_aantal = 3};  if (is.na(t3) & is.na(s3) & !is.na(t2) & !is.na(s2)){schijf_aantal = 2}  
         
-        # HIER AANPASSEN!!! randomly generate case knop
-        aanwas = c(0.5*hvi, hvi + 0.5*hvi, 2*hvi, 3*hvi, 4*hvi,
-                   3*hvi, 2*hvi, 2.5*hvi, 0.7*hvi, 4*vv_drempel, 3*vv_drempel, 
-                   1.5*vv_drempel, 0.5*vv_drempel, 1.3*hvi, 2*hvi, 0.2*hvi,
-                   0.5*hvi, 0.5*vv_drempel, 1.1*vv_drempel, 0.2*vv_drempel)
-        jaar = c(2026:(2025+length(aanwas)))
+        aanwas = case_dat$aanwas
+        jaar = case_dat$jaar
         
         ymax = 1.75*max(hvi, vv_drempel, aanwas)
         ymin = -ymax
-        space = 0.2*hvi
+        space = 0.01*hvi
         
         
         s1_text = paste0("<b>Schijf 1:</b> ", percentify(t1), " belasting over aanwas.")
@@ -1695,7 +1660,6 @@ server = function(input, output) {
           layout(yaxis = list(showticklabels = F), hovermode = "x unified", showlegend = T)
         
         fig
-      } else {}
       
     })
     
