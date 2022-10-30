@@ -1,6 +1,7 @@
 library(shiny)
 library(ggvis)
 library(ggplot2)
+library(plyr)
 library(dplyr)
 library(tidyverse)
 library(DT)
@@ -9,9 +10,10 @@ library(writexl)
 library(shinydashboard)
 library(ggforce)
 library(data.table)
-library(plyr)
 library(ids)
 library(ineq)
+
+
 
 # foutmeldingen
 # als schijfgrens lager dan hvi
@@ -317,7 +319,7 @@ library(ineq)
     
     # budgettaire raming
     scale = 12000000 / nrow(test_new_agg)
-    budget_raming = round(sum(test_new$belasting, na.rm = T)*scale / 1000000, 2)
+    budget_raming = round(sum(test_new$belasting, na.rm = T)*scale / 1000000000, 2)
     
     # grondslag (on)gelijkheid
     test_new$grondslag_perc = 0
@@ -335,7 +337,7 @@ library(ineq)
     gini_opbrengst = round(ineq(aggregate(belasting~jaar, data = test_new, FUN = sum)$belasting,type="Gini"),2)
     
     # overbelasting
-    overbelasting = round(budget_raming - (sum(test_ideal$belasting, na.rm = T)*scale/1000000),2)
+    overbelasting = round(budget_raming - (sum(test_ideal$belasting, na.rm = T)*scale/1000000000),2)
     
     return(list(budget_raming = budget_raming, gini_grondslag = gini_grondslag, gini_belasting = gini_belasting, gini_opbrengst = gini_opbrengst, overbelasting = overbelasting))
     
@@ -365,6 +367,101 @@ library(ineq)
   
   variant_data = data.frame(
     variant = "Voorbeeld", 
+    hvi = 1000, verlies_drempel = 1000,
+    cf = 9, cb = 1, schijf_2 = as.numeric(NA), 
+    schijf_3 = as.numeric(NA), tarief_1 = 34, 
+    tarief_2 = as.numeric(NA), tarief_3 = as.numeric(NA))
+  
+  gen_combi = function(dat_variant, dat_case){
+    
+    # verlies verrekening
+    dat_case_verlies = verreken_verlies(data = dat_case, hvi = dat_variant$hvi, cf = dat_variant$cf, cb = dat_variant$cb)
+        
+    belasting = list()
+    for (row in c(1:nrow(dat_case_verlies))){
+      temp = bepaal_belasting(grondslag = dat_case_verlies$grondslag[row], 
+                              schijf_2 = dat_variant$schijf_2, schijf_3 = dat_variant$schijf_3, 
+                              tarief_1 = dat_variant$tarief_1, tarief_2 = dat_variant$tarief_2, tarief_3 = dat_variant$tarief_3)
+      belasting[[row]] = sum(temp$belasting, na.rm = T)
+    }
+    
+    belasting = sum(do.call(rbind, belasting), na.rm = T)
+    
+    # percentage belasting tov aanwas
+    if(sum(dat_case$aanwas, na.rm = T) > 0) {belasting_perc = round(((belasting / sum(dat_case$aanwas, na.rm = T))*100), 2)} else {belasting_perc = 0}
+    # percentage verrekend verlies tov totaal verlies
+    if (nrow(subset(dat_case, aanwas < 0) > 0)){verlies = sum(subset(dat_case, aanwas < 0)$aanwas, na.rm = T)} else {verlies = 0}
+    if (verlies > 0){verrekend_verlies_perc = (sum(dat_case_verlies$cf, na.rm = T) + sum(dat_case_verlies$cb, na.rm = T))/verlies} else {verrekend_verlies_perc = 0}
+    # percentage grondslag tov aanwas
+    if (sum(dat_case_verlies$grondslag, na.rm = T) > 0){grondslag_perc = round((sum(dat_case_verlies$grondslag, na.rm = T)/sum(dat_case$aanwas, na.rm = T))*100, 2)} else {grondslag_perc = 0}
+    
+        
+    # berekeningen
+    temp_case = data.frame(
+      
+      case_name = dat_case$omschrijving[1], 
+      variant_name = dat_variant$variant,
+      
+      # belastingplichtige
+      
+      risico = round(mean(dat_case$risico, na.rm = T), 2), 
+      belasting = round(belasting, 2), 
+      belasting_perc = belasting_perc, 
+      verlies = abs(round(sum(subset(dat_case_verlies, aanwas < 0)$aanwas, na.rm = T), 2)),
+      verrekend_verlies = round(sum(dat_case_verlies$cf, na.rm = T) +  sum(dat_case_verlies$cb, na.rm = T), 2), 
+      verrekend_verlies_perc = verrekend_verlies_perc,
+      vermogen = round(sum(dat_case$vermogen, na.rm = T), 2), 
+      aanwas = round(sum(dat_case$aanwas, na.rm = T), 2), 
+      grondslag = round(sum(subset(dat_case_verlies, grondslag > 0)$grondslag, na.rm = T), 2), 
+      grondslag_perc = grondslag_perc, 
+      spaargeld = round(sum(dat_case$spaargeld, na.rm = T), 2), 
+      finproduct = round(sum(dat_case$finproduct, na.rm = T), 2), 
+      restbezit = round(sum(dat_case$restbezit, na.rm = T), 2), 
+      schuld = round(sum(dat_case$schuld, na.rm = T), 2), 
+      spaargeld_rendperc = round(mean(dat_case$spaargeld_rendperc, na.rm = T), 2), 
+      finproduct_rendperc = round(mean(dat_case$finproduct_rendperc, na.rm = T), 2), 
+      restbezit_rendperc = round(mean(dat_case$restbezit_rendperc, na.rm = T), 2), 
+      schuld_rendperc = round(mean(dat_case$schuld_rendperc, na.rm = T), 2),
+      
+      # variant
+      hvi = dat_variant$hvi, 
+      verlies_drempel = dat_variant$verlies_drempel, 
+      cf = dat_variant$cf, 
+      cb = dat_variant$cb, 
+      schijf_2 = dat_variant$schijf_2, 
+      schijf_3 = dat_variant$schijf_3, 
+      tarief_1 = dat_variant$tarief_1, 
+      tarief_2 = dat_variant$tarief_2, 
+      tarief_3 = dat_variant$tarief_3)
+      
+      
+    
+      temp_case$verlies[is.na(temp_case$verlies)] = 0
+      temp_case$verrekend_verlies[is.na(temp_case$verrekend_verlies)] = 0
+      temp_case$verrekend_verlies_perc[is.na(temp_case$verrekend_verlies_perc)] = 0
+      temp_case$vermogen[is.na(temp_case$vermogen)] = 0
+      temp_case$aanwas[is.na(temp_case$aanwas)] = 0
+      temp_case$grondslag[is.na(temp_case$grondslag)] = 0
+      temp_case$grondslag_perc[is.na(temp_case$grondslag_perc)] = 0
+      temp_case$spaargeld[is.na(temp_case$spaargeld)] = 0
+      temp_case$finproduct[is.na(temp_case$finproduct)] = 0
+      temp_case$restbezit[is.na(temp_case$restbezit)] = 0
+      temp_case$schuld[is.na(temp_case$schuld)] = 0
+      temp_case$spaargeld_rendperc[is.na(temp_case$spaargeld_rendperc)] = 0
+      temp_case$finproduct_rendperc[is.na(temp_case$finproduct_rendperc)] = 0
+      temp_case$restbezit_rendperc[is.na(temp_case$restbezit_rendperc)] = 0
+      temp_case$schuld_rendperc[is.na(temp_case$schuld_rendperc)] = 0
+    
+    return(temp_case)
+    
+  }
+  
+  
+  variant_case_effects = gen_combi(dat_variant = variant_data, dat_case = case_data)
+  
+  # varianten data macro
+  variant_data_macro = data.frame(
+    variant = "Voorbeeld", 
     budget_raming = variant_stats$budget_raming,
     gini_grondslag = variant_stats$gini_grondslag, 
     gini_belasting = variant_stats$gini_belasting, 
@@ -390,309 +487,271 @@ library(ineq)
 # USER INTERFACE
 
 ui = fluidPage(
-    
-    tabsetPanel(
-        
-      type = "tabs",
-        
-      # TAB 1. DATASET BELASTINGPLICHTIGEN
-      tabPanel(
-          
-        div(style = "font-size: 14px","Dataset belastingplichtigen"),
-        div(style = "font-size: 10px; padding: 0px 0px; margin-bottom:-20em", 
-        HTML("<br>"),
+  
+      navbarPage("Sandbox 3",
+                 
+          # MICRO ANALYSES
+          navbarMenu("Micro analyses",
+                     
+            # STAP 1: WIE ZIJN DE BELASTINGPLICHTIGEN?
+            tabPanel("Stap 1: Wie zijn de belastingplichtigen?",
+                     
+              div(style = "font-size: 10px", 
+                  
+              sidebarPanel(
+                       
+                # Omschrijving
+                h5("Omschrijving"), helpText("Wie is de belastingplichtige? Tip: kies een omschrijving die het makkelijk maakt de casus later terug te vinden."), fluidRow(column(12, textInput(inputId = "omschrijving", label = "", value = omschrijving))),
+                       
+                # Spaargeld
+                h5("Spaargeld (+)"), helpText("Hoeveel spaargeld heeft hij en wat is de rente op spaargeld?"),
+                fluidRow(column(6, numericInput(inputId = "spaargeld", label = "Vermogen (€)", value = round(spaargeld), min = 0, max = Inf)), column(6, numericInput(inputId = "spaargeld_rendperc", label = "Aanwas (%)", value = round(spaargeld_rendperc), min = 0, max = Inf))),
+                       
+                # Financiele producten 
+                h5("Financiële producten (+)"), helpText("Wat is de waarde van zijn financiële producten, zoals verhandelbare aandelen, obligaties, of cryptovaluta en wat is het rendement op deze producten?"),
+                fluidRow(column(6, numericInput(inputId = "finproduct", label = "Vermogen (€)", value = round(finproduct), min = 0, max = Inf)), column(6, numericInput(inputId = "finproduct_rendperc", label = "Aanwas (%)", value = round(finproduct_rendperc), min = 0, max = Inf))),
+                       
+                # Onroerend goed
+                h5("Onroerend goed (+)"), helpText("Wat is de waarde van zijn onroerende goederen, zoals een tweede huis en wat is het rendement op dit bezit?"),
+                fluidRow(column(6, numericInput(inputId = "restbezit", label = "Vermogen (€)", value = round(restbezit), min = 0, max = Inf)), column(6, numericInput(inputId = "restbezit_rendperc", label = "Aanwas (%)", value = round(restbezit_rendperc), min = 0, max = Inf))),
+                       
+                # Schulden
+                h5("Schulden (-)"), helpText("Hoeveel schuld heeft belastingplichtige en wat is de rente op deze schuld?"),
+                       fluidRow(column(6, numericInput(inputId = "schuld", label = "Vermogen (€)", value = round(schuld), min = 0, max = Inf)), column(6, numericInput(inputId = "schuld_rendperc", label = "Aanwas (%)", value = round(schuld_rendperc), min = 0, max = Inf))),
+                       
+                # Crisis
+                h5("Crisis"), helpText("Heeft belastingplichtige een financiële crisis meegemaakt? Zo ja, dan simuleert de tool een vijfjarige crisis vanaf 2035."), 
+                div(style = "font-size: 14px;padding:0px;margin-top: -20px;margin-left: 20px",  radioButtons(inputId = "crisis", label = "", choices = c("ja", "nee"), selected = "nee", inline = TRUE)),
+                       
+                # Risicoprofiel
+                h5("Risicoprofiel"), helpText("Hoe risicovol zijn de financiële producten van belastingplichtige (0 = geen risico, 10 = hoog risico)? De tool neemt deze informatie mee om de fluctatie in aanwas over de tijd heen te berekenen."),
+                sliderInput(inputId = "risico", label = "", value = round(risico), min = 0, max = 10),
+                       
+                # Knoppen
+                fluidRow(
+                  column(6, actionButton(inputId = "add_case", label = "casus toevoegen", width = '104%')),
+                  column(6, actionButton(inputId = "random_case", label = "random casus", width = '104%'))), 
+                
+                width = 3)), 
+                     
+             mainPanel(
+               tabsetPanel(
+                 
+                 tabPanel(title = "Bewerk dataset", 
+                          fluidPage(
+                          HTML("<br>"),
+                          column(10, HTML("<b>!!! Instructie !!!</b> Schets in de linker (grijze) kolom de situatie van de belastingplichtige voor het 
+                          jaar 2026. Druk vervolgens op de knop <em>toevoegen</em> om de casus toe te voegen. Eventueel kunt u ook een door de 
+                          computer gegenereerde casus toevoegen door op het knopje <em>random casus</em> te drukken. De vermogensaanwas ontwikkeling 
+                          wordt nadien op random wijze geexprapoleerd naar de jaren 2027 tot en met 2045. Bent u niet tevreden met de dataset? 
+                          In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>casus verwijderen</em>.
+                          Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
+                          deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
+                          U kunt vervolgens de grondslag berekening van een enkele belastingplichtige bekijken onder de tab <em>inspecteer casus</em>."),
+                          HTML("<br>"), 
+                          fluidRow(
+                          column(3, h5("download template"), downloadButton("download_template", label = "download template")),
+                          column(9, h5("data opladen (.xlsx)"), fileInput("upload_data", label = NULL, multiple = F, accept = ".xlsx", width = '100%', placeholder = NA))),
+                          dataTableOutput('grondslag_data')), 
+                          column(2, 
+                                 actionButton(inputId = "reset_data", label = "reset dataset", width = '100%'), h4(),
+                                 actionButton(inputId = "delete_case", label = "verwijder casus", width = '100%'), h4(),
+                                 downloadButton("download_cases", label = "download", style = "width:100%;")))), 
+                       
+                tabPanel(title = "Inspecteer casus",
+                         fluidPage(HTML("<br>"), 
+                         fluidRow(
+                           column(3, h5("Welke casus wilt u bekijken?"), dataTableOutput('case_names')),
+                           column(9, h5("Grondslag berekening 2026"), 
+                                  htmlOutput("grondslag_tekst", align = "justify"), HTML("<br>"),
+                                  h5("Grondslag 2026-2045"),
+                                  htmlOutput("grondslag_grafieken", align = "justify"),
+                                  plotlyOutput("plot_grondslag")))))
+                     ))),
             
-          # INPUT 
-          sidebarPanel(
-            
-            # Omschrijving
-            h5("Omschrijving"), helpText("Wie is de belastingplichtige? Tip: kies een omschrijving die het makkelijk maakt de casus later terug te vinden."), fluidRow(column(12, textInput(inputId = "omschrijving", label = "", value = omschrijving))),
+            # STAP 2: WELKE VARIANTEN WILT U DOORREKENEN?
+            tabPanel("Stap 2: Welke variant wilt u doorrekenen?", 
+               
+              div(style = "font-size: 10px", 
+              sidebarPanel(
+                
+                # DETAILS
+                h5("Variant"),
+                helpText("Wat is de naam van de variant?"),
+                textInput(inputId = "naam_variant", label = "Naam Variant", value = "Voorbeeld"),
+                           
+                # HEFFING VRIJ INKOMEN
+                h5("Heffingvrij Inkomen (€)"),
+                helpText("Welk bedrag van de aanwas dient vrijgesteld te worden van belasting?"),
+                sliderInput(inputId = "hvi", label = "", value = 1000, min = 0, max = 5000, step = 50),
+                           
+                # VERLIES VERREKENING
+                h5("Verliesverrekening (Jaar)"),
+                helpText("Wat is de drempel voor verliesverrekening? Met hoeveel jaren mag belastingplichtige verlies verrekenen met winst in het huidig jaar (voorwaarts / carry forward)? Met hoeveel jaren mag de belastingplichtige verlies in het huidig jaar verrekenen met winst in voorgaande jaren (achterwaarts / carry backward)?"),
+                sliderInput(inputId = "verlies_drempel",  "Drempel", min = 0, max = 5000, value = 1000, step = 50),
+                sliderInput(inputId = "verlies_voor",  "Voorwaarts (CF)", min = 0, max = 20, value = 9),
+                sliderInput(inputId = "verlies_achter",  "Achterwaarts (CB)", min = 0, max = 10, value = 1),
+                           
+                # SCHIJVEN
+                h5("Schijven"),
+                helpText("Hoeveel schijven (max. 3) heeft de variant? Wat zijn de schijfgrenzen en tarieven? 
+                         N.B. Laat u de velden leeg, dan wordt er automatisch verondersteld dat er slechts een schijf is (met een ongelimiteerde schijfgrens) en een tarief."),
+                           
+                column(4, HTML("<b>S1: Ondergrens (€)</b>")),
+                column(4, numericInput(inputId = "schijf_2", label = "S2: Ondergrens (€)", value = NA, min = 0, max = Inf)),
+                column(4, numericInput(inputId = "schijf_3", label = "S3: Ondergrens (€)", value = NA, min = 0, max = Inf)),
+                           
+                column(4, numericInput(inputId = "tarief_1", label = "S1: Tarief (%)", value = 34, min = 0, max = Inf)),
+                column(4, numericInput(inputId = "tarief_2", label = "S2: Tarief (%)", value = NA, min = 0, max = Inf)),
+                column(4, numericInput(inputId = "tarief_3", label = "S3: Tarief (%)", value = NA, min = 0, max = Inf)),
+                           
+                # VOEG TOE
+                actionButton(inputId = "add_variant", label = "variant toevoegen", width = '100%'),
+                           
+                width = 3 )), # eind div()     
+                     
+            mainPanel(
               
-            # Spaargeld
-            h5("Spaargeld (+)"), helpText("Hoeveel spaargeld heeft hij en wat is de rente op spaargeld?"),
-              fluidRow(column(6, numericInput(inputId = "spaargeld", label = "Vermogen (€)", value = round(spaargeld), min = 0, max = Inf)), column(6, numericInput(inputId = "spaargeld_rendperc", label = "Aanwas (%)", value = round(spaargeld_rendperc), min = 0, max = Inf))),
-              
-            # Financiele producten 
-            h5("Financiële producten (+)"), helpText("Wat is de waarde van zijn financiële producten, zoals verhandelbare aandelen, obligaties, of cryptovaluta en wat is het rendement op deze producten?"),
-            fluidRow(column(6, numericInput(inputId = "finproduct", label = "Vermogen (€)", value = round(finproduct), min = 0, max = Inf)), column(6, numericInput(inputId = "finproduct_rendperc", label = "Aanwas (%)", value = round(finproduct_rendperc), min = 0, max = Inf))),
-              
-            # Onroerend goed
-            h5("Onroerend goed (+)"), helpText("Wat is de waarde van zijn onroerende goederen, zoals een tweede huis en wat is het rendement op dit bezit?"),
-            fluidRow(column(6, numericInput(inputId = "restbezit", label = "Vermogen (€)", value = round(restbezit), min = 0, max = Inf)), column(6, numericInput(inputId = "restbezit_rendperc", label = "Aanwas (%)", value = round(restbezit_rendperc), min = 0, max = Inf))),
-              
-            # Schulden
-            h5("Schulden (-)"), helpText("Hoeveel schuld heeft belastingplichtige en wat is de rente op deze schuld?"),
-            fluidRow(column(6, numericInput(inputId = "schuld", label = "Vermogen (€)", value = round(schuld), min = 0, max = Inf)), column(6, numericInput(inputId = "schuld_rendperc", label = "Aanwas (%)", value = round(schuld_rendperc), min = 0, max = Inf))),
-              
-            # Crisis
-            h5("Crisis"), helpText("Heeft belastingplichtige een financiële crisis meegemaakt? Zo ja, dan simuleert de tool een vijfjarige crisis vanaf 2035."), 
-            div(style = "font-size: 14px;padding:0px;margin-top: -20px;margin-left: 20px",  radioButtons(inputId = "crisis", label = "", choices = c("ja", "nee"), selected = "nee", inline = TRUE)),
-            
-            # Risicoprofiel
-            h5("Risicoprofiel"), helpText("Hoe risicovol zijn de financiële producten van belastingplichtige (0 = geen risico, 10 = hoog risico)? De tool neemt deze informatie mee om de fluctatie in aanwas over de tijd heen te berekenen."),
-            sliderInput(inputId = "risico", label = "", value = round(risico), min = 0, max = 10),
-              
-            # Knoppen
-            fluidRow(
-              column(6, actionButton(inputId = "add_case", label = "casus toevoegen", width = '104%')),
-              column(6, actionButton(inputId = "random_case", label = "random casus", width = '104%'))), 
-              
-            width = 3
-              
-            ) # eind sidebarPanel()
-            ), # eind div()
-            
-          # OUTPUT 
-          div(style = "font-size: 14px; margin-bottom:-20em; line-height: 25px", 
-            
-              # Tabel  
-              mainPanel(
               tabsetPanel(
                 
-                tabPanel(title = "Bewerk dataset", 
-                  fluidPage(
-                    HTML("<br>"),
-                    column(10, 
-                      HTML("<b>!!! Instructie !!!</b> Schets in de linker (grijze) kolom de situatie van de belastingplichtige voor het 
-                      jaar 2026. Druk vervolgens op de knop <em>toevoegen</em> om de casus toe te voegen. Eventueel kunt u ook een door de 
-                      computer gegenereerde casus toevoegen door op het knopje <em>random casus</em> te drukken. De vermogensaanwas ontwikkeling 
-                      wordt nadien op random wijze geexprapoleerd naar de jaren 2027 tot en met 2045. Bent u niet tevreden met de dataset? 
-                      In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>casus verwijderen</em>.
-                      Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
-                      deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
-                      U kunt vervolgens de grondslag berekening van een enkele belastingplichtige bekijken onder de tab <em>inspecteer casus</em>."),
-                      HTML("<br>"), 
-                    fluidRow(
-                      column(3, h5("download template"), downloadButton("download_template", label = "download template")),
-                      column(9, h5("data opladen (.xlsx)"), fileInput("upload_data", label = NULL, multiple = F, accept = ".xlsx", width = '100%', placeholder = NA))),
-                      dataTableOutput('grondslag_data')), 
-                    column(2, 
-                      actionButton(inputId = "reset_data", label = "reset dataset", width = '100%'), h4(),
-                      actionButton(inputId = "delete_case", label = "verwijder casus", width = '100%'), h4(),
-                      downloadButton("download_cases", label = "download", style = "width:100%;")))), 
+                tabPanel(title = "Bewerk dataset",
+                fluidPage(HTML("<br>"),
+                column(10, HTML(
+                  "<b>!!! Instructie !!!</b> Specificeer in de linker (grijze) kolom de variant die u wil doorrekenen. 
+                  Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u ontevreden met de dataset? 
+                  In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>variant verwijderen</em>.
+                  Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
+                  deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
+                  U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>.<br>"
+                ),
                 
-                tabPanel(title = "Inspecteer casus",
+                HTML("<br>"), 
+                fluidRow(
+                  column(3, h5("download template"), downloadButton("download_template_variant", label = "download template")),
+                  column(9, h5("data opladen (.xlsx)"), fileInput("upload_data_variant", label = NULL, multiple = F, accept = ".xlsx", width = '100%', placeholder = NA))),
+                  dataTableOutput('variant_data')), 
+                  column(2, actionButton(inputId = "reset_data_variant", label = "reset dataset", width = '100%'), h4(),
+                  actionButton(inputId = "delete_variant", label = "verwijder variant", width = '100%'), h4(),
+                  downloadButton("download_variants", label = "download", style = "width:100%;")))),
+                       
+                  tabPanel(title = "Inspecteer variant",
                   fluidPage(HTML("<br>"), 
-                            fluidRow(
-                              column(3, h5("Welke casus wilt u bekijken?"), dataTableOutput('case_names')),
-                              column(9, h5("Grondslag berekening 2026"), 
-                                     htmlOutput("grondslag_tekst", align = "justify"), 
-                                     
-                                     HTML("<br>"),
-                                     h5("Grondslag 2026-2045"),
-                                     htmlOutput("grondslag_grafieken", align = "justify"),
-                                     plotlyOutput("plot_grondslag"))
-                              
-                            )
-                   )))))), # !!!! eind tabPanel() belastingplichtige
-        
-        
-        
-        
-        
-        # TAB 2: DATASET VARIANTEN
-        
-        tabPanel(div(style = "font-size: 14px", "Dataset varianten"),
-                 
-            div(style = "font-size: 10px; padding: 0px 0px; margin-bottom:-20em", 
+                  fluidRow(
+                  column(3, h5("Welke variant wilt u bekijken?"), dataTableOutput('variant_names'), HTML("<br>")),
+                  column(9, h5("Toelichting variant"), htmlOutput("variant_tekst", align = "justify"),
+                   plotlyOutput("plot_variant"),
+                  sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'),
+                  ))))))       
+                     
+                     
+                     ),
+            tabPanel("Stap 3: Bekijk resultaten",
+                 tabsetPanel(
+                   tabPanel("Dataset", 
+                     HTML("<br>"),
+                     HTML("De onderstaande tabel bevat de doorrekening van elk van de door u gespecificeerde variant voor elk van de door u opgegeven belastingplichtigen.
+                     Bent u ontevreden met de dataset? In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>rij verwijderen</em>.
+                     Wil u de tabel opslaan, druk dan op de <em>download</em> knop rechtsboven. Onder de tab <em>inspecteer microvoorbeeld</em> kunt u vervolgens 
+                     de grondslag en belasting berekening voor een enkele casus en een enkele variant inspecteren. Onder de tab <em>inspecteer varianten</em> 
+                     worden de gevolgen van elk van de varianten voor de door u opgegeven casi in kaart gebracht. Specifiek wordt er naar een viertal statistieken gekeken:
+                     <br><br>
+                     <ul>
+                     <li><b>grondslag ongelijkheid</b>, m.n. de mate waarin het percentage grondslag (t.o.v. aanwas) verschilt tussen de door u opgegeven belastingplichtigen  (0-1);</li>
+                     <li><b>belasting ongelijkheid</b>, m.n. de mate waarin het percentage belasting (t.o.v. aanwas) verschilt tussen de door u opgegeven belastingplichtigen (0-1);</li>
+                     <li><b>overbelasting</b>, m.n. het percentage extra belasting dat de door u opgegeven belastingplichtigen betalen door restricties op verliesverrekening. </li>
+                     </ul>
+                     <br>"),
+                     column(9,dataTableOutput('variant_case_effects')),
+                     column(2, actionButton(inputId = "reset_variant_case_effects", label = "reset dataset", width = '100%'), h4(),
+                               actionButton(inputId = "delete_variant_effects", label = "verwijder variant", width = '100%'), h4(),
+                               downloadButton("download_variants_case_effects", label = "download", style = "width:100%;"))
+                     ),
+                   
+                   tabPanel("Inspecteer microvoorbeeld"),
+                   tabPanel("Inspecteer varianten")
+                   )) 
+            ),
                 
-                HTML("<br>"),
-                
+          # MACRO ANALYSES 
+          navbarMenu("Macro analyses",
+                     
+             tabPanel("Stap 1: Welke varianten wilt u vergelijken?",
+                div(style = "font-size: 10px", 
                 sidebarPanel(
+                            
+                # DETAILS
+                h5("Variant"),
+                helpText("Wat is de naam van de variant?"),
+                textInput(inputId = "naam_variant_macro", label = "Naam Variant", value = "Voorbeeld"),
+                
+                # HEFFING VRIJ INKOMEN
+                h5("Heffingvrij Inkomen (€)"),
+                helpText("Welk bedrag van de aanwas dient vrijgesteld te worden van belasting?"),
+                sliderInput(inputId = "hvi_macro", label = "", value = 1000, min = 0, max = 5000, step = 50),
+                
+                # VERLIES VERREKENING
+                h5("Verliesverrekening (Jaar)"),
+                helpText("Wat is de drempel voor verliesverrekening? Met hoeveel jaren mag belastingplichtige verlies verrekenen met winst in het huidig jaar (voorwaarts / carry forward)? Met hoeveel jaren mag de belastingplichtige verlies in het huidig jaar verrekenen met winst in voorgaande jaren (achterwaarts / carry backward)?"),
+                sliderInput(inputId = "verlies_drempel_macro",  "Drempel", min = 0, max = 5000, value = 1000, step = 50),
+                sliderInput(inputId = "verlies_voor_macro",  "Voorwaarts (CF)", min = 0, max = 20, value = 9),
+                sliderInput(inputId = "verlies_achter_macro",  "Achterwaarts (CB)", min = 0, max = 10, value = 1),
+                
+                # SCHIJVEN
+                h5("Schijven"),
+                helpText("Hoeveel schijven (max. 3) heeft de variant? Wat zijn de schijfgrenzen en tarieven? 
+                N.B. Laat u de velden leeg, dan wordt er automatisch verondersteld dat er slechts een schijf is (met een ongelimiteerde schijfgrens) en een tarief."),
+                
+                column(4, HTML("<b>S1: Ondergrens (€)</b>")),
+                column(4, numericInput(inputId = "schijf_2_macro", label = "S2: Ondergrens (€)", value = NA, min = 0, max = Inf)),
+                column(4, numericInput(inputId = "schijf_3_macro", label = "S3: Ondergrens (€)", value = NA, min = 0, max = Inf)),
+                
+                column(4, numericInput(inputId = "tarief_1_macro", label = "S1: Tarief (%)", value = 34, min = 0, max = Inf)),
+                column(4, numericInput(inputId = "tarief_2_macro", label = "S2: Tarief (%)", value = NA, min = 0, max = Inf)),
+                column(4, numericInput(inputId = "tarief_3_macro", label = "S3: Tarief (%)", value = NA, min = 0, max = Inf)),
+                
+                # VOEG TOE
+                actionButton(inputId = "add_variant_macro", label = "variant toevoegen", width = '100%'),
+                
+                width = 3 )), # eind div()   
+                      
+                mainPanel(
                   
-                  # DETAILS
-                  h5("Variant"),
-                  helpText("Wat is de naam van de variant?"),
-                  textInput(inputId = "naam_variant", label = "Naam Variant", value = "Voorbeeld"),
-                  
-                  # HEFFING VRIJ INKOMEN
-                  h5("Heffingvrij Inkomen (€)"),
-                  helpText("Welk bedrag van de aanwas dient vrijgesteld te worden van belasting?"),
-                  sliderInput(inputId = "hvi", label = "", value = 1000, min = 0, max = 5000, step = 50),
-                  
-                  # VERLIES VERREKENING
-                  h5("Verliesverrekening (Jaar)"),
-                  helpText("Wat is de drempel voor verliesverrekening? Met hoeveel jaren mag belastingplichtige verlies verrekenen met winst in het huidig jaar (voorwaarts / carry forward)? Met hoeveel jaren mag de belastingplichtige verlies in het huidig jaar verrekenen met winst in voorgaande jaren (achterwaarts / carry backward)?"),
-                  sliderInput(inputId = "verlies_drempel",  "Drempel", min = 0, max = 5000, value = 1000, step = 50),
-                  sliderInput(inputId = "verlies_voor",  "Voorwaarts (CF)", min = 0, max = 20, value = 9),
-                  sliderInput(inputId = "verlies_achter",  "Achterwaarts (CB)", min = 0, max = 10, value = 1),
-                  
-                  # SCHIJVEN
-                  h5("Schijven"),
-                  helpText("Hoeveel schijven (max. 3) heeft de variant? Wat zijn de schijfgrenzen en tarieven? 
-                           N.B. Laat u de velden leeg, dan wordt er automatisch verondersteld dat er slechts een schijf is (met een ongelimiteerde schijfgrens) en een tarief."),
-                  
-                  column(4, HTML("<b>S1: Ondergrens (€)</b>")),
-                  column(4, numericInput(inputId = "schijf_2", label = "S2: Ondergrens (€)", value = NA, min = 0, max = Inf)),
-                  column(4, numericInput(inputId = "schijf_3", label = "S3: Ondergrens (€)", value = NA, min = 0, max = Inf)),
-                  
-                  column(4, numericInput(inputId = "tarief_1", label = "S1: Tarief (%)", value = 34, min = 0, max = Inf)),
-                  column(4, numericInput(inputId = "tarief_2", label = "S2: Tarief (%)", value = NA, min = 0, max = Inf)),
-                  column(4, numericInput(inputId = "tarief_3", label = "S3: Tarief (%)", value = NA, min = 0, max = Inf)),
-                  
-                  # VOEG TOE
-                  actionButton(inputId = "add_variant", label = "variant toevoegen", width = '100%'),
-                  
-                  width = 3
-                  
-                ) # eind sidebarPanel()
-                ), # eind div()     
-            
-                mainPanel(tabsetPanel(
+                  tabsetPanel(
                     
                     tabPanel(title = "Bewerk dataset",
-                      fluidPage(HTML("<br>"),
-                        column(10, HTML("<b>!!! Instructie !!!</b> Specificeer in de linker (grijze) kolom de variant die u wil doorrekenen. 
-                        Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u ontevreden met de dataset? 
-                        In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>variant verwijderen</em>.
-                        Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
-                        deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
-                        De tabel voorziet daarnaast in een aantal statistieken op basis waarvan u de varianten (objectief) kunt vergelijken, met name:
-                              <br>
-                              <ul>
-                              <li>budgettaire opbrengst, m.n. de omvang van de opbrengst (in mln.);</li>
-                              <li>grondslag ongelijkheid, m.n. de mate waarin burgers met dezelfde aanwas een andere grondslag hebben (0-1);</li>
-                              <li>belasting ongelijkheid, m.n. de mate waarin burgers met dezelfde aanwas een andere belasting betalen (0-1);</li>
-                              <li>bugdettaire instabiliteit, m.n. de mate waarin opbrengst ongelijk is over de jaren heen (0-1). </li>
-                              <li>overbelasting, m.n. de omvang van de opbrengst (in mln.) die te wijden is aan de inperkingen op verliesverrekening. </li>
-                              </ul>
-                        
-                        U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>.<br>
-                        <b>Waarschuwing: de onderstaande statistieken zijn schattingen gegenereerd op basis van een random steekproef met beperkte omvang.
-                        U zal in een volgende update de mogelijkheid ontvangen een volledige raming voor een door u geselecteerde variant te genereren onder 
-                        de tab <em>inspecteer variant</em>.</b>"),
-                        HTML("<br>"), 
-                        fluidRow(
-                          column(3, h5("download template"), downloadButton("download_template_variant", label = "download template")),
-                                 column(9, h5("data opladen (.xlsx)"), fileInput("upload_data_variant", label = NULL, multiple = F, accept = ".xlsx", width = '100%', placeholder = NA))),
-                                 dataTableOutput('variant_data')), 
-                          column(2, actionButton(inputId = "reset_data_variant", label = "reset dataset", width = '100%'), h4(),
-                                actionButton(inputId = "delete_variant", label = "verwijder variant", width = '100%'), h4(),
-                                downloadButton("download_variants", label = "download", style = "width:100%;")))
-                       ),
+                             fluidPage(HTML("<br>"),
+                             column(10, HTML(
+                             "<b>!!! Instructie !!!</b> Specificeer in de linker (grijze) kolom de variant die u wil doorrekenen <b> voor de populatie </b>. 
+                              Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u ontevreden met de dataset? 
+                              In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>variant verwijderen</em>.
+                              Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
+                              deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
+                              U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>.<br>"),
+                              HTML("<br>"), 
+                              fluidRow(
+                                column(3, h5("download template"), downloadButton("download_template_variant_macro", label = "download template")),
+                                column(9, h5("data opladen (.xlsx)"), fileInput("upload_data_variant_macro", label = NULL, multiple = F, accept = ".xlsx", width = '100%', placeholder = NA))),
+                                dataTableOutput('variant_data_macro')), 
+                                column(2, actionButton(inputId = "reset_data_variant_macro", label = "reset dataset", width = '100%'), h4(),
+                                actionButton(inputId = "delete_variant_macro", label = "verwijder variant", width = '100%'), h4(),
+                                downloadButton("download_variants_macro", label = "download", style = "width:100%;")))),
                     
                     tabPanel(title = "Inspecteer variant",
-                       fluidPage(HTML("<br>"), 
-                       fluidRow(
-                         column(3, h5("Welke variant wilt u bekijken?"), dataTableOutput('variant_names'), HTML("<br>")),
-                         column(9, h5("Toelichting variant"), htmlOutput("variant_tekst", align = "justify"),
-                         plotlyOutput("plot_variant"),
-                         sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'),
-                         ))))
-                    
-                ))), 
-      
-        tabPanel(div(style = "font-size: 14px","Dataset vergelijkingen"),
-                 div(style = "font-size: 10px; padding: 0px 0px; margin-bottom:-20em",
-                 HTML("<br>"),
-                 sidebarPanel(
-                   
-                   # SIDEBAR
-                   h5("Naam vergelijking"), helpText("Welke naam wilt u de vergelijking geven?"), 
-                   textInput(inputId = "naam_vergelijking", label = NULL, value = "Vergelijking 1"),
-                   h5("Selecteer casus"), helpText("Voor welke belastingplichtige(n) wilt u varianten vergelijken?"), HTML("<br>"), dataTableOutput('select_case'),
-                   h5("Selecteer varianten"), helpText("Welke varianten wilt u vergelijken?"), HTML("<br>"), dataTableOutput('select_variant'),
-                   actionButton(inputId = "add_comparison", label = "vergelijking toevoegen", width = '100%'),
-                   
-                   width = 3)),
-                 
-                 mainPanel(
-                   tabsetPanel(
-                     tabPanel(title = "Bewerk dataset", 
-                            fluidPage(
-                              HTML("<br>"),
-                              column(10, 
-                              HTML("<b>!!! Instructie !!!</b> Bepaal in de linker (grijze) kolom welke belastingplichtigen en varianten u wilt vergelijken.
-                              De tool rekent dan elke combinatie van de selecties voor u door voor de variabelen grondslag, verrekend verlies en belasting.
-                              
-                              Bent u niet tevreden met de dataset? 
-                              In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>rij verwijderen</em>.
-                              Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
-                              U kunt vervolgens een enkele vergelijking bekijken onder de tab <em>inspecteer vergelijking</em>.<br>"),
-                              HTML("<br>"), 
-                              dataTableOutput('comparison_data')), 
-                              column(2, 
-                                     actionButton(inputId = "reset_data_comparison", label = "reset dataset", width = '100%'), h4(),
-                                     actionButton(inputId = "delete_comparison", label = "verwijder rij", width = '100%'), h4(),
-                                     downloadButton("download_comparison", label = "download", style = "width:100%;")
-                                     ))), 
-                   
-                   
-                   
-                   tabPanel("Inspecteer vergelijking casi"),
-                   tabPanel("Inspecteer vergelijking varianten")
-                   
-                 ))) #,
-            
-            
-                # VOOR WINDOW 3
-                # htmlOutput("case_variant_tekst", align = "justify"), 
-                # h5("Welke casus wilt u bekijken?"), dataTableOutput('case_names_variant'))
-            
-                #div(style = "font-size: 14px; margin-bottom:-20em; line-height: 25px", 
-                #column(5, 
-                #      
-                #       absolutePanel(
-                #         h4("Casus", align = "center"), 
-                #         
-                #         fluidRow(
-                #           column(6, selectInput(inputId = "case_type_2", label = "Welke casus wilt u bekijken?", choices = c("meest recent", "mediaan", "hoogste aanwas", "laagste aanwas"))),
-                #           column(6, selectInput(inputId = "jaar_nu", label = "Jaar", choices = 2026:2045, selected = 2036)),
-                #         ),
-                #         htmlOutput("belasting_text", align = "justify"), HTML("<br>"),
-                #         actionButton(inputId = "new_case", label = "nieuwe casus", width = '100%'), HTML("<br><br>"),
-                #       tabsetPanel(
-                #         tabPanel("Overzicht", absolutePanel(HTML("<br>"), plotOutput("variant_plot")) , align = "center"), 
-                #         tabPanel("Grondslag", absolutePanel(HTML("<br>"), plotOutput("belasting_plot_1")) , align = "center"), 
-                #         tabPanel("Belasting", absolutePanel(HTML("<br>"), plotOutput("belasting_plot_2")) , align = "center")
-                #         ), width = 550) # eind tabsetPanel()
-                       
-                #) # eind column()
-                #), # eind div()
-                
-            #column(4, absolutePanel(h4("Dataset varianten", align = "center"), helpText("De onderstaande tabel bevat de door u opgeslagen varianten evenals de belasting voor de mediaan belastingplichtige uit uw dataset. Deze dataset wordt in de komende stappen gebruikt om varianten te vergelijken voor dezelfde belastingplichtige of om de situatie van de belastingplichtige in verschillende varianten te vergelijken."),
-            #                        HTML("<br>"), dataTableOutput('variant_data'), HTML("<br><br>"), 
-            #                        fluidRow(column(6,actionButton(inputId = "reset_variant_data", label = "reset", width = '100%')), column(6,downloadButton(outputId = "download_varianten", label = "download", width = '100%'))), 
-            #                        width = 400))
-                # eind tabPanel 
-        
-        
-        # WELKE VARIANT IS HET MEEST GUNSTIG VOOR BELASTINGPLICHTIGE
-        
-        #tabPanel(div(style = "font-size: 14px","Welke variant is het meest gunstig?"),
-        #         div(style = "font-size: 10px; padding: 0px 0px; margin-bottom:-20em", 
-        #         HTML("<br>"),
-        #             
-        #         # INPUT 
-        #         sidebarPanel(
-        #           h5("Variabele"), helpText("Voor welke variabele wilt u de varianten vergelijken? (grondslag, verrekend verlies, belasting)"), selectInput(inputId = "yvar", label = "", choices = c("grondslag (€)", "grondslag (% aanwas)", "verrekend verlies (€)", "verrekend verlies (% verlies)", "belasting (€)", "belasting (% aanwas)"), selected = "belasting"),
-        #           h5("Tijd"), helpText("Wilt u één jaar bekijken of de gemiddelden van alle jaren (2026-2045)?"), selectInput(inputId = "timevar", label = "", choices = c("één jaar", "alle jaren"), selected = "één jaar"),
-        #           h5("Selecteer casus"), helpText("Voor welke belastingplichtige(n) wilt u varianten vergelijken?"), HTML("<br>"), dataTableOutput('case_selection'),
-        #           h5("Selecteer varianten"), helpText("Welke varianten wilt u vergelijken?"), HTML("<br>"), dataTableOutput('variant_selection'),
-        #           actionButton(inputId = "add_favorite", label = "favoriet toevoegen", width = '100%'),
-        #           width = 3)), # eind sidebarPanel()
-                 
-        #         # OUTPUT 
-        #         div(style = "font-size: 14px; margin-bottom:-20em; line-height: 25px", 
-        #             column(5, 
-        #                    
-        #                    absolutePanel(
-        #                      h4("Vergelijking", align = "center"), 
-        #                      htmlOutput("variant_text", align = "justify"), HTML("<br>"),
-        #                      tabsetPanel(
-        #                        
-        #                        tabPanel("Varianten", HTML("<br>"), plotOutput("compare_variants_plot", )),
-        #                        tabPanel("Belastingplichtigen", HTML("<br>"), plotOutput("compare_individuals_plot"))
-        #                      ), width = 550)# eind tabsetPanel()
-        #                    
-        #             ) # eind column()
-        #         )    
-        #             
-        #         ) 
-          
-          
-        ) # eind TabSetPanel()
-      ) # eind FluidPage()
+                             fluidPage(HTML("<br>"), 
+                                       fluidRow(
+                                         column(3, h5("Welke variant wilt u bekijken?"), dataTableOutput('variant_names_macro'), HTML("<br>")),
+                                         column(9, h5("Toelichting variant"), htmlOutput("variant_tekst_macro", align = "justify"),
+                                                plotlyOutput("plot_variant_macro"),
+                                                sliderInput(inputId = "plot_variant_jaar_macro", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'),
+                                         ))))))       
+                      
+                      
+                      ),
+          tabPanel("Stap 2: Bekijk resultaten")
+          ),
+          # GENEREER RAPORT 
+          tabPanel("Genereer rapport")
+      )) # eind FluidPage()
 
 
 # SERVER
@@ -706,8 +765,149 @@ server = function(input, output) {
       #   easyClose = TRUE
       #))
   
-  ################################## TABPANEL 1: WINDOW 1 ##################################
+  ################################## 1. MICRO ANALYSES ##################################
+  
+  
+  ############ 1.1. MICRO ANALYSES - STAP 1: WIE ZIJN DE BELASTINGPLICHTIGEN? ###########
+  
+  ############ SIDEBAR ###########
+  
+  # KNOP CASUS TOEVOEGEN
+  observeEvent(input$add_case, {
     
+    # Easter Egg
+    easteregg = data.frame(
+      omschrijving = c("Nick Jongerius", "Sjifra de Leeuw", "Josha Box", "Stefan Smalbrugge", "Nienke Cornelissen", "Allard Smit",
+                       "Aschwin Moes", "Bart van den Hof", "Kees den Boogert", "Marjolein van den Berg", "Marjan Nienhuis", "Ruud Beenhakker", "Koen van Schie", 
+                       "Rocus van Opstal"), 
+      voornaam = c("Nick", "Sjifra", "Josha", "Stefan", "Nienke", "Allard", "Aschwin", "Bart", "Kees", "Marjolein", "Marjan", "Ruud", "Koen", "Rocus"), 
+      geslacht = c("man", "vrouw", "man", "man", "vrouw", "man", "man", "man", "man", "vrouw", "vrouw", "man", "man", "man")
+    )
+    
+    easteregg$vnw = "hij"; easteregg$vnw[easteregg$geslacht == "vrouw"] = "zij"
+    easteregg$vnw_bezit = "hem"; easteregg$vnw_bezit[easteregg$geslacht == "vrouw"] = "haar"
+    
+    if (input$omschrijving %in% easteregg$omschrijving){
+      
+      voornaam = subset(easteregg, omschrijving == input$omschrijving)$voornaam
+      vnw = subset(easteregg, omschrijving == input$omschrijving)$vnw
+      vnw_bezit = subset(easteregg, omschrijving == input$omschrijving)$vnw_bezit
+      geslacht = subset(easteregg, omschrijving == input$omschrijving)$geslacht
+      
+      opmerkingen = c(
+        paste0("Vrouwen vergelijken met een auto? Dat zit er voor ", voornaam, " niet in."),
+        paste0("We gaan op sjiek, mensen. Dit is ", voornaam, ". Ouder van twee volwassen dochters en 
+                 en nee, ", vnw, " draagt niet het trouwpak van het eerste of tweede huwelijk, maar misschien
+                 wel van nummer drie. Ben jij die nummer drie? Bel ", vnw_bezit, " snel!" ),
+        paste0(voornaam, " neemt nooit initiatief en doet nooit iets in het huishouden.
+                 Gun jezelf de tijd en met een beetje begeleiding heb je binnen 30 jaar een eigen ", voornaam, 
+               " in huis die wel de ", geslacht, " van je dromen is. Even geduld dus!"),
+        paste0(voornaam, " heeft helemaal geen behoefte aan een bakkie, ", vnw, " wil een moderne man
+                 die matcht en zelf zijn jasje dasje wast. Dus zie jij jezelf wel naast ", vnw_bezit, " in
+                 de spiegel staan, bel ", vnw_bezit, " dan snel."),
+        paste0(voornaam, " heeft het al niet zo op dominante vrouwen en ", vnw, " is er nu helemaal klaar mee.
+                 Ben jij dol op het huishouden en zoek jij een ", geslacht, " die zich het liefst laat 
+                 verzorgen? Dan trakteert ", voornaam, " je graag op een bakkie -- of zelfs een achterbakkie 
+                 (wink wink, nudge nudge) als je mazzel hebt."),
+        paste0(voornaam, " is heel erg gevoelig voor alcohol, maar kijkt erg nuchter naar de liefde. Wil jij
+                 een wijntje met ", vnw_bezit, " delen? Neem dan contact met ", vnw_bezit, " op!"), 
+        paste0(voornaam, " vindt zichzelf te knap voor ", sample(easteregg$voornaam, size = 1), ". Ben jij wel knap genoeg? Bel dan snel!"),
+        paste0("Croissantjes lekker voorverwarmd op een inductieplaat, eitjes in de airfryer pan hup in de oven,
+                 versgeperste sinaasappelsap met meer pitjes dan sap. Heerlijk wakker worden want ", voornaam, 
+               " heeft een geslaagd ontbijt voor je klaarstaan."), 
+        paste0("Romantiek voor ", voornaam, " is lekker samenzitten met een goed boek onder een sterrenhemel. 
+                  Maar niet in de Provence. Je vult weer vanalles voor ", vnw_bezit, " in. Daar heeft ", vnw, 
+               " veel moeite mee. Dus laat ", vnw_bezit, " in rust een boekje lezen.")
+        
+      )
+      
+      
+      showModal(modalDialog(
+        title = sample(opmerkingen, size = 1),
+        easyClose = TRUE
+      ))
+    }
+    
+    # het serieuze gedeelte 
+    
+    sd = 0.4
+    sd_rend = 0.5*isolate(input$risico)*sd
+    
+    if (is.null(input$upload_data)){data = case_data()} 
+    if (!is.null(input$upload_data)){data = upload_data$data}
+    if(nrow(data) == 0){id = 1} else {id = max(data$id) + 1}
+    
+    if(isolate(input$omschrijving) %in% data$omschrijving){omschrijving_new = paste0(isolate(input$omschrijving), " ", max(data$id) + 1)
+    } else {omschrijving_new = isolate(input$omschrijving)}
+    
+    if (is.na(isolate(input$spaargeld))){spaargeld = 0} else {spaargeld = isolate(input$spaargeld)}
+    if (is.na(isolate(input$finproduct))){finproduct = 0} else {finproduct = isolate(input$finproduct)}
+    if (is.na(isolate(input$restbezit))){restbezit = 0} else {restbezit = isolate(input$restbezit)}
+    if (is.na(isolate(input$schuld))){schuld = 0} else {schuld = isolate(input$schuld)}
+    
+    if (is.na(isolate(input$spaargeld_rendperc))){spaargeld_rendperc = 0} else {spaargeld_rendperc = isolate(input$spaargeld_rendperc)}
+    if (is.na(isolate(input$finproduct_rendperc))){finproduct_rendperc = 0} else {finproduct_rendperc = isolate(input$finproduct_rendperc)}
+    if (is.na(isolate(input$restbezit_rendperc))){restbezit_rendperc = 0} else {restbezit_rendperc = isolate(input$restbezit_rendperc)}
+    if (is.na(isolate(input$schuld_rendperc))){schuld_rendperc = 0} else {schuld_rendperc = isolate(input$schuld_rendperc)}
+    
+    dat = gen_history(data.frame(
+      id = id, omschrijving = omschrijving_new, 
+      risico = gen_value(mean = isolate(input$risico), sd = sd, n = 1), jaar = 2026,
+      spaargeld = spaargeld, finproduct = finproduct, restbezit = restbezit, 
+      schuld = schuld, spaargeld_rendperc = spaargeld_rendperc, finproduct_rendperc = finproduct_rendperc, restbezit_rendperc = restbezit_rendperc, 
+      schuld_rendperc = schuld_rendperc), sd_rend = sd_rend, crisis = input$crisis)
+    
+    if (is.null(input$upload_data)){  
+      case_data() %>% 
+        bind_rows(dat) %>%
+        case_data()   
+    } else { 
+      upload_data$data = upload_data$data %>% bind_rows(dat)   
+      
+    }
+    
+  })
+  
+  # KNOP RANDOM CASUS 
+  observeEvent(input$random_case, {
+    
+    if (is.null(input$upload_data)){data = case_data()} 
+    if (!is.null(input$upload_data)){data = upload_data$data}
+    if(nrow(data) == 0){id = 1} else {id = max(data$id) + 1}
+    
+    if(isolate(input$omschrijving) %in% data$omschrijving){omschrijving_new = paste0(isolate(input$omschrijving), " ", max(data$id) + 1)
+    } else {omschrijving_new = isolate(input$omschrijving)}
+    
+    risico = sample(0:10, 1, replace = T)
+    #sd = sd
+    sd_rend = risico*sd
+    
+    
+    dat = gen_history(data.frame(
+      id = id, omschrijving = omschrijving_new, 
+      risico = risico, jaar = 2026,
+      spaargeld = max(c(gen_value(mean = 42300, sd = sd), 0)), 
+      finproduct = max(c(gen_value(mean = 7000, sd = sd), 0)), 
+      restbezit = sample(seq(0,1000000,100000), 1, replace = T), 
+      schuld = max(c(gen_value(mean = 12800, sd = sd), 0)), 
+      spaargeld_rendperc = max(c(gen_value(mean = 0.36, sd = sd), 0)),
+      finproduct_rendperc = max(c(gen_value(mean = 6.17, sd = sd_rend), 0)), 
+      restbezit_rendperc = max(c(gen_value(mean = 6.17, sd = sd_rend), 0)), 
+      schuld_rendperc = max(c(gen_value(mean = 2.57, sd = sd)), 0)), 
+      sd_rend = sd_rend, crisis = input$crisis)
+    
+    if (is.null(input$upload_data)){  
+      case_data() %>% 
+        bind_rows(dat) %>%
+        case_data()   
+    } else { 
+      upload_data$data = upload_data$data %>% bind_rows(dat)  
+    }
+    
+  })
+  
+  ############ TAB 1 ############ 
+  
     # DOWNLOAD TEMPLATE 
     output$download_template = downloadHandler(
       filename = function() { 
@@ -729,9 +929,6 @@ server = function(input, output) {
             crisis_janee = ""),
           file)
       })
-    
-    # VOORGEPROGRAMEERDE STANDAARD DATA 
-    case_data = reactiveVal(case_data)
     
     # OPLADEN DATA 
     upload_data = reactiveValues(data = NULL)
@@ -768,6 +965,9 @@ server = function(input, output) {
       return(data)
     }
     
+    # VOORGEPROGRAMEERDE DATA 
+    case_data = reactiveVal(case_data)
+    
     # OUTPUT TABEL
     output$grondslag_data = renderDataTable({
       
@@ -789,156 +989,6 @@ server = function(input, output) {
       
     })
     
-    # KNOP DOWNLOAD 
-    selected_data = function(input = NULL){
-      
-      if (is.null(input)){data = case_data()
-      } else {data = upload_data$data}
-      
-      return(data)
-    }
-    
-    output$download_cases = downloadHandler(
-      
-      filename = function() {paste("sandbox3_cases.xlsx", sep="")},
-      content = function(file) {write_xlsx(selected_data(input$upload_data), file)}
-      
-      )
-    
-    # KNOP CASUS TOEVOEGEN
-    observeEvent(input$add_case, {
-      
-      # Easter Egg
-      easteregg = data.frame(
-        omschrijving = c("Nick Jongerius", "Sjifra de Leeuw", "Josha Box", "Stefan Smalbrugge", "Nienke Cornelissen", "Allard Smit",
-                         "Aschwin Moes", "Bart van den Hof", "Kees den Boogert", "Marjolein van den Berg", "Marjan Nienhuis", "Ruud Beenhakker", "Koen van Schie", 
-                         "Rocus van Opstal"), 
-        voornaam = c("Nick", "Sjifra", "Josha", "Stefan", "Nienke", "Allard", "Aschwin", "Bart", "Kees", "Marjolein", "Marjan", "Ruud", "Koen", "Rocus"), 
-        geslacht = c("man", "vrouw", "man", "man", "vrouw", "man", "man", "man", "man", "vrouw", "vrouw", "man", "man", "man")
-      )
-      
-      easteregg$vnw = "hij"; easteregg$vnw[easteregg$geslacht == "vrouw"] = "zij"
-      easteregg$vnw_bezit = "hem"; easteregg$vnw_bezit[easteregg$geslacht == "vrouw"] = "haar"
-      
-      if (input$omschrijving %in% easteregg$omschrijving){
-        
-        voornaam = subset(easteregg, omschrijving == input$omschrijving)$voornaam
-        vnw = subset(easteregg, omschrijving == input$omschrijving)$vnw
-        vnw_bezit = subset(easteregg, omschrijving == input$omschrijving)$vnw_bezit
-        geslacht = subset(easteregg, omschrijving == input$omschrijving)$geslacht
-      
-      opmerkingen = c(
-        paste0("Vrouwen vergelijken met een auto? Dat zit er voor ", voornaam, " niet in."),
-        paste0("We gaan op sjiek, mensen. Dit is ", voornaam, ". Ouder van twee volwassen dochters en 
-               en nee, ", vnw, " draagt niet het trouwpak van het eerste of tweede huwelijk, maar misschien
-               wel van nummer drie. Ben jij die nummer drie? Bel ", vnw_bezit, " snel!" ),
-        paste0(voornaam, " neemt nooit initiatief en doet nooit iets in het huishouden.
-               Gun jezelf de tijd en met een beetje begeleiding heb je binnen 30 jaar een eigen ", voornaam, 
-               " in huis die wel de ", geslacht, " van je dromen is. Even geduld dus!"),
-        paste0(voornaam, " heeft helemaal geen behoefte aan een bakkie, ", vnw, " wil een moderne man
-               die matcht en zelf zijn jasje dasje wast. Dus zie jij jezelf wel naast ", vnw_bezit, " in
-               de spiegel staan, bel ", vnw_bezit, " dan snel."),
-        paste0(voornaam, " heeft het al niet zo op dominante vrouwen en ", vnw, " is er nu helemaal klaar mee.
-               Ben jij dol op het huishouden en zoek jij een ", geslacht, " die zich het liefst laat 
-               verzorgen? Dan trakteert ", voornaam, " je graag op een bakkie -- of zelfs een achterbakkie 
-               (wink wink, nudge nudge) als je mazzel hebt."),
-        paste0(voornaam, " is heel erg gevoelig voor alcohol, maar kijkt erg nuchter naar de liefde. Wil jij
-               een wijntje met ", vnw_bezit, " delen? Neem dan contact met ", vnw_bezit, " op!"), 
-        paste0(voornaam, " vindt zichzelf te knap voor ", sample(easteregg$voornaam, size = 1), ". Ben jij wel knap genoeg? Bel dan snel!"),
-        paste0("Croissantjes lekker voorverwarmd op een inductieplaat, eitjes in de airfryer pan hup in de oven,
-               versgeperste sinaasappelsap met meer pitjes dan sap. Heerlijk wakker worden want ", voornaam, 
-               " heeft een geslaagd ontbijt voor je klaarstaan."), 
-        paste0("Romantiek voor ", voornaam, " is lekker samenzitten met een goed boek onder een sterrenhemel. 
-                Maar niet in de Provence. Je vult weer vanalles voor ", vnw_bezit, " in. Daar heeft ", vnw, 
-                " veel moeite mee. Dus laat ", vnw_bezit, " in rust een boekje lezen.")
-        
-      )
-      
-      
-        showModal(modalDialog(
-          title = sample(opmerkingen, size = 1),
-          easyClose = TRUE
-        ))
-      }
-      
-      # het serieuze gedeelte 
-      
-      sd = 0.4
-      sd_rend = 0.5*isolate(input$risico)*sd
-      
-      if (is.null(input$upload_data)){data = case_data()} 
-      if (!is.null(input$upload_data)){data = upload_data$data}
-      if(nrow(data) == 0){id = 1} else {id = max(data$id) + 1}
-      
-      if(isolate(input$omschrijving) %in% data$omschrijving){omschrijving_new = paste0(isolate(input$omschrijving), " ", max(data$id) + 1)
-      } else {omschrijving_new = isolate(input$omschrijving)}
-      
-      if (is.na(isolate(input$spaargeld))){spaargeld = 0} else {spaargeld = isolate(input$spaargeld)}
-      if (is.na(isolate(input$finproduct))){finproduct = 0} else {finproduct = isolate(input$finproduct)}
-      if (is.na(isolate(input$restbezit))){restbezit = 0} else {restbezit = isolate(input$restbezit)}
-      if (is.na(isolate(input$schuld))){schuld = 0} else {schuld = isolate(input$schuld)}
-      
-      if (is.na(isolate(input$spaargeld_rendperc))){spaargeld_rendperc = 0} else {spaargeld_rendperc = isolate(input$spaargeld_rendperc)}
-      if (is.na(isolate(input$finproduct_rendperc))){finproduct_rendperc = 0} else {finproduct_rendperc = isolate(input$finproduct_rendperc)}
-      if (is.na(isolate(input$restbezit_rendperc))){restbezit_rendperc = 0} else {restbezit_rendperc = isolate(input$restbezit_rendperc)}
-      if (is.na(isolate(input$schuld_rendperc))){schuld_rendperc = 0} else {schuld_rendperc = isolate(input$schuld_rendperc)}
-      
-      dat = gen_history(data.frame(
-          id = id, omschrijving = omschrijving_new, 
-          risico = gen_value(mean = isolate(input$risico), sd = sd, n = 1), jaar = 2026,
-          spaargeld = spaargeld, finproduct = finproduct, restbezit = restbezit, 
-          schuld = schuld, spaargeld_rendperc = spaargeld_rendperc, finproduct_rendperc = finproduct_rendperc, restbezit_rendperc = restbezit_rendperc, 
-          schuld_rendperc = schuld_rendperc), sd_rend = sd_rend, crisis = input$crisis)
-      
-      if (is.null(input$upload_data)){  
-        case_data() %>% 
-          bind_rows(dat) %>%
-          case_data()   
-      } else { 
-        upload_data$data = upload_data$data %>% bind_rows(dat)   
-        
-      }
-       
-    })
-    
-    # KNOP RANDOM CASUS 
-    observeEvent(input$random_case, {
-      
-      if (is.null(input$upload_data)){data = case_data()} 
-      if (!is.null(input$upload_data)){data = upload_data$data}
-      if(nrow(data) == 0){id = 1} else {id = max(data$id) + 1}
-      
-      if(isolate(input$omschrijving) %in% data$omschrijving){omschrijving_new = paste0(isolate(input$omschrijving), " ", max(data$id) + 1)
-      } else {omschrijving_new = isolate(input$omschrijving)}
-      
-      risico = sample(0:10, 1, replace = T)
-      #sd = sd
-      sd_rend = risico*sd
-      
-      
-     dat = gen_history(data.frame(
-        id = id, omschrijving = omschrijving_new, 
-        risico = risico, jaar = 2026,
-        spaargeld = max(c(gen_value(mean = 42300, sd = sd), 0)), 
-        finproduct = max(c(gen_value(mean = 7000, sd = sd), 0)), 
-        restbezit = sample(seq(0,1000000,100000), 1, replace = T), 
-        schuld = max(c(gen_value(mean = 12800, sd = sd), 0)), 
-        spaargeld_rendperc = max(c(gen_value(mean = 0.36, sd = sd), 0)),
-        finproduct_rendperc = max(c(gen_value(mean = 6.17, sd = sd_rend), 0)), 
-        restbezit_rendperc = max(c(gen_value(mean = 6.17, sd = sd_rend), 0)), 
-        schuld_rendperc = max(c(gen_value(mean = 2.57, sd = sd)), 0)), 
-        sd_rend = sd_rend, crisis = input$crisis)
-      
-     if (is.null(input$upload_data)){  
-       case_data() %>% 
-         bind_rows(dat) %>%
-         case_data()   
-     } else { 
-       upload_data$data = upload_data$data %>% bind_rows(dat)  
-     }
-      
-    })
-    
     # KNOP VERWIJDER CASUS 
     observeEvent(input$delete_case, {
       
@@ -956,8 +1006,24 @@ server = function(input, output) {
       
     })
     
+    # KNOP DOWNLOAD 
+    selected_data = function(input = NULL){
+      
+      if (is.null(input)){data = case_data()
+      } else {data = upload_data$data}
+      
+      return(data)
+    }
     
-    ################################## TABPANEL 1 -- WINDOW 2 ##################################
+    output$download_cases = downloadHandler(
+      
+      filename = function() {paste("sandbox3_cases.xlsx", sep="")},
+      content = function(file) {write_xlsx(selected_data(input$upload_data), file)}
+      
+      )
+    
+    ############ TAB 2 ############ 
+    
     
     # DATA CASE NAMES
     output$case_names = renderDataTable({
@@ -976,7 +1042,7 @@ server = function(input, output) {
       text = ""
       
       # als geen data beschikbaar
-      if (nrow(case_data()) < 1){text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
+      if (nrow(case_data()) < 1){text = "Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
       
       # als wel data beschikbaar
       } else {
@@ -1049,7 +1115,7 @@ server = function(input, output) {
              Welk jaar dat is en hoeveel ", naam, " mag verrekenen is afhankelijk van de parameters
              van het door u gekozen stelsel in het volgende luik.")
       } else {
-        text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool"
+        text = "Er is geen data beschikbaar. Voeg data toe met behulp van de tool"
       }
       
       text
@@ -1088,31 +1154,95 @@ server = function(input, output) {
       
     })
     
-   
-            
-    ################################## TABPANEL 2 -- WINDOW 1 #################################
     
     
-    # VOORGEPROGRAMEERDE STANDAARD DATA 
-    variant_data_input = reactiveVal(variant_data)
+    
+    ############ 1.2. MICRO ANALYSES - STAP 2: Welke variant wilt u doorrekenen? ###########
+    
+    ############ SIDEBAR ###########
+    
+    # KNOP VARIANT TOEVOEGEN
+    observeEvent(input$add_variant, {
+      
+      if (is.null(input$upload_data_variant)){data = variant_data_input()} 
+      if (!is.null(input$upload_data_variant)){data = upload_variant_data$data}
+      
+      if(isolate(input$naam_variant) %in% data$variant){naam_variant_new = paste0(isolate(input$naam_variant), " ", nrow(data)+1)
+      } else {naam_variant_new = isolate(input$naam_variant)}
+      
+      dat = data.frame(
+        variant = naam_variant_new,
+        hvi = isolate(input$hvi),
+        verlies_drempel = isolate(input$verlies_drempel),
+        cf = isolate(input$verlies_voor),
+        cb = isolate(input$verlies_achter),
+        schijf_2 = isolate(input$schijf_2),
+        schijf_3 = isolate(input$schijf_3),
+        tarief_1 = isolate(input$tarief_1),
+        tarief_2 = isolate(input$tarief_2),
+        tarief_3 = isolate(input$tarief_3)) 
+      
+      if (is.null(input$upload_data_variant)){  
+        variant_data_input() %>% 
+          bind_rows(dat) %>%
+          variant_data_input()
+      } else {
+        
+        dat = dat %>% setNames(c("variant", "opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+        upload_variant_data$data = upload_variant_data$data %>% 
+          bind_rows(dat)   
+      } 
+      
+    }) 
+    
+    ############ TAB 1 ############ 
+    
+    # KNOP DOWNLOAD TEMPLATE
+    output$download_template_variant = downloadHandler(
+      filename = function() { 
+        paste("sandbox3_template_variant.xlsx", sep="")
+      },
+      content = function(file) {
+        write_xlsx(
+          data.frame(
+            variant = "",
+            budget_raming = "niet invullen, little padawan",
+            gini_grondslag = "niet invullen, little padawan", 
+            gini_belasting = "niet invullen, little padawan", 
+            gini_opbrengst = "niet invullen, little padawan",
+            overbelasting = "niet invullen, little padawan",
+            hvi = NA,
+            verlies_drempel = NA,
+            cf = NA,
+            cb = NA,
+            schijf_2 = NA,
+            schijf_3 = NA,
+            tarief_1 = NA,
+            tarief_2 = NA,
+            tarief_3 = NA),
+          file)
+      })
     
     # KNOP OPLADEN DATA 
     upload_variant_data = reactiveValues(data = NULL)
     
     gen_upload_variant_data = function(){
       upload_variant_data$data = readxl::read_xlsx(input$upload_data_variant$datapath) %>%
-        setNames(c("variant", "budgettaire opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
+        setNames(c("variant", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
     }
     
     observeEvent(input$upload_data_variant, {upload_variant_data$data = gen_upload_variant_data()})
-
+    
+    # VOORGEPROGRAMEERDE DATA 
+    variant_data_input = reactiveVal(variant_data)
+    
     # OUTPUT TABEL
     output$variant_data = renderDataTable({
       
       inFile = input$upload_data_variant
       if (is.null(inFile)){data = variant_data_input()} else {data = upload_variant_data$data}
       
-      data %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+      data %>% setNames(c("variant", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
       
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
     
@@ -1121,33 +1251,12 @@ server = function(input, output) {
       
       if (is.null(input$upload_data_variant)){variant_data_input() %>% filter(row_number() %in% -1) %>% variant_data_input()
       } else {upload_variant_data$data =  data.frame(variant = as.character(), 
-                                                     budget_raming = as.numeric(),
-                                                     gini_grondslag = as.numeric(), 
-                                                     gini_belasting = as.numeric(), 
-                                                     gini_opbrengst = as.numeric(), 
-                                                     overbelasting = as.numeric(), 
                                                      hvi = as.numeric(), verlies_drempel = as.numeric(),
                                                      cf = as.numeric(), cb = as.numeric(), schijf_2 = as.numeric(), 
                                                      schijf_3 = as.numeric(), tarief_1 = as.numeric(), tarief_2 = as.numeric(),
                                                      tarief_3 = as.numeric())}
       
     })
-    
-    # KNOP DOWNLOAD 
-    selected_data_variant = function(input = NULL){
-      
-      if (is.null(input)){data = variant_data_input()
-      } else {data = upload_variant_data$data}
-      
-      return(data)
-    }
-    
-    output$download_variants = downloadHandler(
-      
-      filename = function() {paste("sandbox3_variants.xlsx", sep="")},
-      content = function(file) {write_xlsx(selected_data_variant(input$upload_data_variant), file)}
-      
-    )
     
     # KNOP VERWIJDER VARIANT 
     observeEvent(input$delete_variant, {
@@ -1169,25 +1278,242 @@ server = function(input, output) {
       
     })
     
+    
+    # KNOP DOWNLOAD 
+    selected_data_variant = function(input = NULL){
+      
+      if (is.null(input)){data = variant_data_input()
+      } else {data = upload_variant_data$data}
+      
+      return(data)
+    }
+    
+    output$download_variants = downloadHandler(
+      
+      filename = function() {paste("sandbox3_variants.xlsx", sep="")},
+      content = function(file) {write_xlsx(selected_data_variant(input$upload_data_variant), file)}
+      
+    )
+    
+    ############# 1.3. MICRO ANALYSES - STAP 3: RESULTATEN #############
+    
+    ############ TAB 1 ###########
+    
+    
+    # OUTPUT TABEL
+    output$variant_case_effects = renderDataTable({
+      
+      if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
+      if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
+      
+      varnames = c("belastingplichtige", "variant", "risico", "belasting €", "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", 
+                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
+                   "aanwas overig bezit (%)", "aanwas schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
+      
+      if (nrow(variant_data) > 0 & nrow(case_data) > 0){
+      
+      temp = list()
+      # elke case
+      for (i in c(1:length(unique(case_data$omschrijving)))){
+        # elke variant
+        for (j in c(1:nrow(variant_data))){
+          temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
+          
+        }}
+      
+        temp = do.call(rbind, temp) %>% setNames(varnames)
+        temp
+      } else {
+        temp = variant_case_effects %>% setNames(varnames) %>% filter(., row_number() %in% -1)
+        temp
+      }
+    
+    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
+    
+    # KNOP RESET DATA
+    observeEvent(input$reset_variant_case_effects, {
+      
+      if (is.null(input$upload_data_variant)){
+        variant_data_input() %>%
+          filter(row_number() %in% -1) %>%
+          variant_data_input()
+      } else {
+        upload_variant_data$data = upload_variant_data$data %>%
+          filter(row_number() %in% -1)
+      }
+      
+      if (is.null(input$upload_data)){
+        case_data() %>%
+          filter(row_number() %in% -1) %>%
+          case_data()
+        
+      } else {
+        upload_data$data = upload_data$data %>%
+          filter(row_number() %in% -1)
+      }
+      
+    })
+    
+    # KNOP VERWIJDER VARIANT 
+    observeEvent(input$delete_variant_effects, {
+      
+      varnames = c("belastingplichtige", "variant", "risico", "belasting €", "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", 
+                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
+                   "aanwas overig bezit (%)", "aanwas schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
+      
+      if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
+      if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
+      
+      if (nrow(variant_data) > 0 & nrow(case_data) > 0){
+        
+        temp = list()
+        # elke case
+        for (i in c(1:length(unique(case_data$omschrijving)))){
+          # elke variant
+          for (j in c(1:nrow(variant_data))){
+            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
+            
+          }}
+        
+        temp = do.call(rbind, temp) 
+      } else {
+        temp = variant_case_effects %>% filter(., row_number() %in% -1)
+      }
+      
+      variant = unique(temp[input$variant_case_effects_rows_selected, "variant"])
+      
+      if (is.null(input$upload_data_variant)){
+        variant_data_input() %>%
+          subset(., variant != variant) %>%
+          setNames(varnames) %>%
+          variant_data_input()
+      } else {
+        upload_variant_data$data = upload_variant_data$data %>%
+          subset(., variant != variant) %>%
+          setNames(varnames) 
+      }
+      
+    })
+    
+    
+    # reset_variant_case_effects delete_variant_effects download_variants_case_effects
+    
+    
+    ############ SIDEBAR ###########
+    
+    ################################## 2. MACRO ANALYSES ##################################
+            
+    ################################## TABPANEL 2 -- WINDOW 1 #################################
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ################################## NIEUW VOOR MACRO ##################################################
+    
+    # VOORGEPROGRAMEERDE STANDAARD DATA 
+    variant_data_input_macro = reactiveVal(variant_data_macro)
+    
+    # KNOP OPLADEN DATA 
+    upload_variant_data_macro = reactiveValues(data = NULL)
+    
+    gen_upload_variant_data_macro = function(){
+      upload_variant_data_macro$data = readxl::read_xlsx(input$upload_data_variant_macro$datapath) %>%
+        setNames(c("variant", "opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies_drempel", "cf", "cb", "schijf_2", "schijf_3", "tarief_1", "tarief_2", "tarief_3"))
+    }
+    
+    observeEvent(input$upload_data_variant_macro, {upload_variant_data_macro$data = gen_upload_variant_data_macro()})
+    
+    # OUTPUT TABEL
+    output$variant_data_macro = renderDataTable({
+      
+      inFile = input$upload_data_variant_macro
+      if (is.null(inFile)){data = variant_data_input_macro()} else {data = upload_variant_data_macro$data}
+      
+      data %>% setNames(c("variant", "opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+      
+    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
+    
+    # KNOP RESET DATA
+    observeEvent(input$reset_data_variant_macro, {
+      
+      if (is.null(input$upload_data_variant_macro)){variant_data_input_macro() %>% filter(row_number() %in% -1) %>% variant_data_input_macro()
+      } else {upload_variant_data$data =  data.frame(variant = as.character(), 
+                                                     budget_raming = as.numeric(),
+                                                     gini_grondslag = as.numeric(), 
+                                                     gini_belasting = as.numeric(), 
+                                                     gini_opbrengst = as.numeric(), 
+                                                     overbelasting = as.numeric(), 
+                                                     hvi = as.numeric(), verlies_drempel = as.numeric(),
+                                                     cf = as.numeric(), cb = as.numeric(), schijf_2 = as.numeric(), 
+                                                     schijf_3 = as.numeric(), tarief_1 = as.numeric(), tarief_2 = as.numeric(),
+                                                     tarief_3 = as.numeric())}
+      
+    })
+    
+    # KNOP DOWNLOAD 
+    selected_data_variant_macro = function(input = NULL){
+      
+      if (is.null(input)){data = variant_data_input_macro()
+      } else {data = upload_variant_data_macro$data}
+      
+      return(data)
+    }
+    
+    output$download_variants_macro = downloadHandler(
+      
+      filename = function() {paste("sandbox3_variants_macro.xlsx", sep="")},
+      content = function(file) {write_xlsx(selected_data_variant_macro(input$upload_data_variant_macro), file)}
+      
+    )
+    
+    # KNOP VERWIJDER VARIANT 
+    observeEvent(input$delete_variant_macro, {
+      
+      remove = input$variant_data_macro_rows_selected
+      remove = remove[length(remove)]
+      
+      if (is.null(input$upload_data_variant_macro)){  
+        
+        remove = variant_data_input_macro()[remove, "variant"]
+        
+        variant_data_input_macro() %>% 
+          subset(., variant != remove) %>%
+          variant_data_input_macro()
+        
+      } else { 
+        upload_variant_data_macro$data = upload_variant_data_macro$data[-remove,]
+      }
+      
+    })
+    
     # KNOP VARIANT TOEVOEGEN
-    observeEvent(input$add_variant, {
+    observeEvent(input$add_variant_macro, {
       
-      if (is.null(input$upload_data_variant)){data = variant_data_input()} 
-      if (!is.null(input$upload_data_variant)){data = upload_variant_data$data}
+      if (is.null(input$upload_data_variant_macro)){data = variant_data_input_macro()} 
+      if (!is.null(input$upload_data_variant_macro)){data = upload_variant_data_macro$data}
       
-      if(isolate(input$naam_variant) %in% data$variant){naam_variant_new = paste0(isolate(input$naam_variant), " ", nrow(data)+1)
+      if(isolate(input$naam_variant_macro) %in% data$variant){naam_variant_new = paste0(isolate(input$naam_variant_macro), " ", nrow(data)+1)
       } else {naam_variant_new = isolate(input$naam_variant)}
       
       variant_stats = calculate_variant_stats(
-        hvi = isolate(input$hvi), 
-        vv_drempel = isolate(input$verlies_drempel),
-        cf = isolate(input$verlies_voor),
-        cb = isolate(input$verlies_achter),
-        s2 = isolate(input$schijf_2),
-        s3 = isolate(input$schijf_3),
-        t1 = isolate(input$tarief_1),
-        t2 = isolate(input$tarief_2),
-        t3 = isolate(input$tarief_3))
+        hvi = isolate(input$hvi_macro), 
+        vv_drempel = isolate(input$verlies_drempel_macro),
+        cf = isolate(input$verlies_voor_macro),
+        cb = isolate(input$verlies_achter_macro),
+        s2 = isolate(input$schijf_2_macro),
+        s3 = isolate(input$schijf_3_macro),
+        t1 = isolate(input$tarief_1_macro),
+        t2 = isolate(input$tarief_2_macro),
+        t3 = isolate(input$tarief_3_macro))
       
       dat = data.frame(
         variant = naam_variant_new,
@@ -1196,33 +1522,33 @@ server = function(input, output) {
         gini_belasting = variant_stats$gini_belasting, 
         gini_opbrengst = variant_stats$gini_opbrengst,
         overbelasting = variant_stats$overbelasting,
-        hvi = isolate(input$hvi),
-        verlies_drempel = isolate(input$verlies_drempel),
-        cf = isolate(input$verlies_voor),
-        cb = isolate(input$verlies_achter),
-        schijf_2 = isolate(input$schijf_2),
-        schijf_3 = isolate(input$schijf_3),
-        tarief_1 = isolate(input$tarief_1),
-        tarief_2 = isolate(input$tarief_2),
-        tarief_3 = isolate(input$tarief_3)) 
+        hvi = isolate(input$hvi_macro),
+        verlies_drempel = isolate(input$verlies_drempel_macro),
+        cf = isolate(input$verlies_voor_macro),
+        cb = isolate(input$verlies_achter_macro),
+        schijf_2 = isolate(input$schijf_2_macro),
+        schijf_3 = isolate(input$schijf_3_macro),
+        tarief_1 = isolate(input$tarief_1_macro),
+        tarief_2 = isolate(input$tarief_2_macro),
+        tarief_3 = isolate(input$tarief_3_macro)) 
       
-      if (is.null(input$upload_data_variant)){  
-        variant_data_input() %>% 
+      if (is.null(input$upload_data_variant_macro)){  
+        variant_data_input_macro() %>% 
           bind_rows(dat) %>%
-          variant_data_input()
+          variant_data_input_macro()
       } else {
         
-        dat = dat %>% setNames(c("variant", "budgettaire opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
-        upload_variant_data$data = upload_variant_data$data %>% 
+        dat = dat %>% setNames(c("variant", "opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
+        upload_variant_data_macro$data = upload_variant_data_macro$data %>% 
           bind_rows(dat)   
       } 
       
     })
     
     # KNOP DOWNLOAD TEMPLATE
-    output$download_template_variant = downloadHandler(
+    output$download_template_variant_macro = downloadHandler(
       filename = function() { 
-        paste("sandbox3_template_variant.xlsx", sep="")
+        paste("sandbox3_template_variant_macro.xlsx", sep="")
       },
       content = function(file) {
         write_xlsx(
@@ -1276,118 +1602,108 @@ server = function(input, output) {
       
       # PARAMETERS
       naam_variant = dat_variant_id
+      
+      # heffingvrij inkomen
       hvi = dat_variant$hvi
+      hvi_verschil = hvi - 1000
+      
+      # verlies verrekeningsdrempel
       vv_drempel = dat_variant$verlies_drempel
+      vv_drempel_verschil = vv_drempel - 1000
+      
       vv_cf = dat_variant$cf
       vv_cb = dat_variant$cb
+      #vv_cf_verschil = vv_cf - 9
+      #vv_cb_verschil = vv_cb - 1
+      
+      # tarieven en schijven
       s2 = dat_variant$schijf_2; s3 = dat_variant$schijf_3
       t1 = dat_variant$tarief_1; t2 = dat_variant$tarief_2; t3 = dat_variant$tarief_3
       schijf_aantal = 1; if (!is.na(t3) & !is.na(s3)){schijf_aantal = 3};  if (is.na(t3) & is.na(s3) & !is.na(t2) & !is.na(s2)){schijf_aantal = 2} 
       
-      # HEFFING VRIJ INKOMEN
-      if (hvi > 0){
-        text = paste0(
-            "<b>Heffingvrij inkomen.</b> Variant <i>", naam_variant, "</i> kent een heffingvrij inkomen van <i>", number_to_money(hvi), "</i>. 
-            Belastingplichtigen hoeven over dit bedrag geen belasting af te dragen. Het verhogen van het hvi heeft de volgende gevolgen: <br><br>
-            
-            <ul>
-            <li>het aantal burgers dat een beroep kan doen op verliesverrekening neemt af; </li>
-            <li>burgers met verliezen en belastbare winsten, hebben meer baat bij brede mogelijkheid tot verliesverrekening; </li>
-            <li>de staat ondervindt budgettaire derving; </li>
-            </ul> "
-          ) 
-       } else {
-         text = paste0(
-           "<b>Heffingvrij Inkomen.</b> Variant <i>", naam_variant, "</i> kent geen heffingvrij inkomen. 
-           Iedereen betaalt dus belasting over zijn inkomen uit vermogen. Het gelijkstellen van het hvi aan nul 
-           heeft de volgende gevolgen: <br><br>
-            
-            <ul>
-            <li>het aantal burgers dat een beroep kan doen op verliesverrekening neemt toe; </li>
-            <li>burgers hebben meer baat bij brede mogelijkheid tot verliesverrekening; </li>
-            <li>de staat ondervindt een hogere budgettaire opbrengst; </li>
-            </ul>")
-       }
+      # text 
+      text = paste0("Variant <i>", naam_variant, "</i> kent een heffingvrij inkomen <i>", number_to_money(hvi), "</i>. 
+                    Iedereen die een inkomen uit vermogen heeft onder deze grens, betaalt geen belasting in box 3. 
+                    De hoogte van het hvi bepaalt eveneens het aantal burgers dat een beroep kan doen op verliesverrekening.
+                    Variant voorziet een verliesverrekeningsdrempel van <i>", number_to_money(vv_drempel), "</i>; <i>",  vv_cf, " jaar</i> voorwaartse
+                    verliesverrekening en <i>", vv_cb, " jaar</i> achterwaartse verliesverrekening. Iedere burger met 
+                    (1) een belastbaar inkomen uit vermogen in belastingjaar ", input$plot_variant_jaar, ", d.w.z. een inkomen
+                    boven het hvi en (2) onverrekende verliezen uit de jaren <i>", input$plot_variant_jaar - vv_cf, " tot ", input$plot_variant_jaar + vv_cb, "</i> 
+                    kan deze in mindering brengen bij de grondslag van het belastingjaar. ")
       
-      # VERLIESVERREKENING 
-      text = paste0(text, "<b>Verliesverrekening.</b> ")
-        
-        
-        
-        if (vv_cf == 0 & vv_cb == 0){
-          text = paste0(text, "Er is geen mogelijkheid tot verliesverrekening. Belastingplichtigen kunnen hun verliezen dus niet in mindering
-                        brengen bij de belastinggrondslag van andere jaren. Geen mogelijkheid tot verliesverrekening voorzien 
-                        heeft volgende gevolgen: <br><br>
-            
-            <ul>
-            <li>burgers met veel verlies betalen over de jaren heen te veel belasting; </li>
-            <li>burgers hebben meer baat bij een hoger hvi; </li>
-            <li>de staat ondervindt een hogere en meer stabiele budgettaire opbrengst. </li>
-            </ul>")
-          
-        } else {
-          
-          if (vv_drempel > 0){
-            text = paste0(text,
-            "Er is een drempel voor verliesverrekening van <i>", number_to_money(vv_drempel), "</i>. Verliezen onder deze grens
-            kunnen niet verrekend worden. "
-            )} else {
-              text = paste0(text, "Er is geen drempel voor verliesverrekening. Elk verlies mag verrekend worden. ")
-            }
-          
-          if (vv_cf > 1){
-            text = paste0(text, "Variant voorziet <i>", vv_cf, "</i> jaar voorwaartse verliesverrekening. Belastingplichtigen mogen verliezen uit
-                          de voorgaande <i>", vv_cf, "</i> jaar in mindering brengen bij de belasting grondslag van het huidig jaar. ")
-          } else if (vv_cf == 1) {
-            text = paste0(text, "Variant voorziet <i>", vv_cf, "</i> jaar voorwaartse verliesverrekening. Belastingplichtigen mogen verliezen uit het 
-                          afgelopen jaar in mindering brengen bij de belasting grondslag van het huidig jaar. ")
-            
-          } else {
-            text = paste0(text, "Variant voorziet geen voorwaartse verliesverrekening. Belastingplichtigen mogen verliezen uit
-                          de voorgaand jaren niet in mindering brengen bij de belasting grondslag van het huidig jaar. ")
-          }
-          
-          if (vv_cb > 1){
-            text = paste0(text, "Variant voorziet <i>", vv_cb, "</i> jaar achterwaartse verliesverrekening. Belastingplichtigen mogen verlies in het 
-                          belastingjaar in mindering brengen bij de belasting grondslag van de voorgaande <i>", vv_cb, "</i> jaar in mindering 
-                          brengen bij de belasting grondslag van het huidig jaar. ")
-          } else if (vv_cb == 1){
-            text = paste0(text, "Variant voorziet <i>", vv_cb, "</i> jaar achterwaartse verliesverrekening. Belastingplichtigen mogen verlies in het 
-                          belastingjaar in mindering brengen bij de belasting grondslag van het afgelopen jaar in mindering brengen bij de 
-                          belasting grondslag van het huidig jaar. ")
-          } else {
-            text = paste0(text, "Variant voorziet geen voorwaartse verliesverrekening. Belastingplichtigen mogen verliezen uit
-                          de voorgaand jaren niet in mindering brengen bij de belasting grondslag van het huidig jaar. ")
-          }
-          
-          text = paste0(text, "De mogelijkheid tot verliesverrekening verbreden (lagere drempel, langere periode) heeft volgende gevolgen: <br><br>
-                          
-                        <ul>
-                        <li>meer burgers kunnen een beroep op verliesverrekening doen; </li>
-                        <li>minder burgers betalen belasting in de hoogste schijf; </li>
-                        <li>er onstaat een trade-off: hoe hoger de drempel, hoe meer baat burgers hebben bij een langere periode; </li>
-                        <li>de staat ondervindt budgettaire derving en een lagere en minder stabiele opbrengsten. </li>
-                        </ul>")
-          
-        }
-          
-      # PROGRESSIVITEIT VAN TARIEF
-      text = paste0(text, "<b>Progressiviteit tarief.</b> ")
-      if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag. ")}
+      if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Alle belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag van het belastingjaar.")}
       if (schijf_aantal == 2){text = paste0(text, "Variant kent een progressief tarief met twee schijven. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
-                                            "</i> en <i>", percentify(t2), "</i> over de rest."  )}
+                                           "</i> en <i>", percentify(t2), "</i> over de rest."  )}
       if (schijf_aantal == 3){text = paste0(text, "Variant kent een progressief tarief met drie schijven.Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
                                             "</i>; <i>", percentify(t2), "</i> tot <i>", number_to_money(s3), "</i> en <i>", percentify(t3), "</i> over de rest." )}
       
-      text = paste0(text, "Het versterken van de progressiviteit heeft volgende gevolgen: <br><br>
+      # toelichting grafiek
+      text = paste0(text, "<br><br><b>De onderstaande grafiek verschaft een visualisatie van de door u gespecificeerde variant 
+                    voor een voorbeeld belastingplichtige. Het grijze gebied boven de nul is het heffingvrij inkomen en onder de 
+                    nul niet verrekenbare verliezen (daar deze onder de verliesverrekeningsdrempel zitten). Het groene gebied toont 
+                    de aanwas die in aanmerking komt voor achterwaartse verliesverrekening en het rode gebied de aanwas die in aanmerking
+                    komt voor voorwaartse verliesverrekening. Beweeg met uw muis over de jaren om te inspecteren of de aanwas van dat
+                    jaar onder het hvi, belastbaar inkomen, onverrekenbaar verlies, of verrekenbaar verlies valt. U kunt het 
+                    belastingjaar veranderen door de slider te verschuiven. <br><br>")
+      
+      
+      ################ NIEUW VOOR MACRO ##################
+      #text = "De door u geselecteerde variant wordt steeds vergeleken met de 'standaard variant'. 
+      #Onder de standaard variant verstaan wij een variant met (1) hvi van €1000, (2) verlies verrekeningsdrempel van €1000,
+      #(3) 9 jaar voorwaartse verliesverrekening, (4) één jaar achterwaartse verliesverrekening en (5) een uniform tarief van 34%. <br><br>"
+      
+      # HEFFING VRIJ INKOMEN
+      #text = paste0(text, "Variant <i>", naam_variant, "</i> kent een heffinvrij inkomen van <i>", number_to_money(hvi), "</i>. ")
+      #if (hvi_verschil > 0){text = paste0(text, "Dat is <i>", number_to_money(hvi_verschil), "</i> meer dan onder de standaard variant. ")
+      #} else if (hvi_verschil < 0){text = paste0(text, "Dat is <i>", number_to_money(abs(hvi_verschil)), "</i> minder dan onder de standaard variant. ")
+      #} else {text = paste0(text, "Dat is evenveel als het hvi onder de standaard variant. ")}
+      
+      # VERLIESVERREKENING 
+      #text = paste0(text, "Variant voorziet een drempel van <i>", number_to_money(vv_drempel), "</i>. ")
+      #if (vv_drempel_verschil > 0){text = paste0(text, "Dat is <i>", number_to_money(vv_drempel_verschil), "</i> meer dan onder de standaard variant. ")
+      #} else if (vv_drempel_verschil < 0){text = paste0(text, "Dat is <i>", number_to_money(abs(vv_drempel_verschil)), "</i> minder dan onder de standaard variant. ")
+      #} else {text = paste0(text, "Dat is evenveel als de drempel onder de standaard variant. ")}
+      
+      #text = paste0(text, "Variant faciliteert <i>", vv_cf, "</i> jaar voorwaartse verliesverrekening en <i>", vv_cb, "</i> achterwaartse verliesverrekening. Dat is respectievelijk ")
+      #if (vv_cf_verschil > 0){
+      #  text = paste0(text, "<i> ", vv_cf_verschil, " jaar</i> meer en ")
+      #} else if (vv_cf_verschil < 0){
+      #  text = paste0(text, "<i> ", abs(vv_cf_verschil), " jaar</i> minder en ")
+      #} else {
+      #  text = paste0(text, "<i> evenveel jaar</i> en ")
+      #}
+      
+      #if (vv_cb_verschil > 0){
+      #  text = paste0(text, "<i> ", vv_cb_verschil, " jaar</i> meer dan onder de standaard variant. ")
+      #} else if (vv_cb_verschil < 0){
+      #  text = paste0(text, "<i> ", abs(vv_cb_verschil), " jaar</i> minder dan onder de standaard variant. ")
+      #} else {
+      #  text = paste0(text, "<i> evenveel jaar</i> als onder de standaard variant. ")
+      #}
+      
+      # TARIEF EN SCHIJFGRENZEN
+      
+      
+      
+          
+      # PROGRESSIVITEIT VAN TARIEF
+      #text = paste0(text, "<b>Progressiviteit tarief.</b> ")
+      #if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag. ")}
+      #if (schijf_aantal == 2){text = paste0(text, "Variant kent een progressief tarief met twee schijven. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
+      #                                      "</i> en <i>", percentify(t2), "</i> over de rest."  )}
+      #if (schijf_aantal == 3){text = paste0(text, "Variant kent een progressief tarief met drie schijven.Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
+      #                                      "</i>; <i>", percentify(t2), "</i> tot <i>", number_to_money(s3), "</i> en <i>", percentify(t3), "</i> over de rest." )}
+      
+      #text = paste0(text, "Het versterken van de progressiviteit heeft volgende gevolgen: <br><br>
                           
-                        <ul>
-                        <li>burgers met middelgrote rendementen betalen minder en burgers met grote rendementen meer; </li>
-                        <li>de staat ondervindt in beginsel een budgettaire opbrengst; </li>
-                        <li>in combinatie met verliesverrekening, is deze opbrengst instabieler. </li>
-                        </ul>")
-      } else {
-        text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
+      #                  <ul>
+      #                  <li>burgers met middelgrote rendementen betalen minder en burgers met grote rendementen meer; </li>
+      #                  <li>de staat ondervindt in beginsel een opbrengst; </li>
+      #                  <li>in combinatie met verliesverrekening, is deze opbrengst instabieler. </li>
+      #                  </ul>")
+      #} else {
+      #  text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
+      
       }
       
       text
