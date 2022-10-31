@@ -650,7 +650,7 @@ ui = fluidPage(
                  tabsetPanel(
                    tabPanel("Dataset", 
                      HTML("<br>"),
-                     HTML("De onderstaande tabel bevat de doorrekening van elk van de door u gespecificeerde variant voor elk van de door u opgegeven belastingplichtigen.
+                     column(9, HTML("De onderstaande tabel bevat de doorrekening van elk van de door u gespecificeerde variant voor elk van de door u opgegeven belastingplichtigen.
                      Bent u ontevreden met de dataset? In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>rij verwijderen</em>.
                      Wil u de tabel opslaan, druk dan op de <em>download</em> knop rechtsboven. Onder de tab <em>inspecteer microvoorbeeld</em> kunt u vervolgens 
                      de grondslag en belasting berekening voor een enkele casus en een enkele variant inspecteren. Onder de tab <em>inspecteer micro effecten</em> 
@@ -662,7 +662,7 @@ ui = fluidPage(
                      <li><b>overbelasting</b>, m.n. het percentage extra belasting dat de door u opgegeven belastingplichtigen betalen door restricties op verliesverrekening. </li>
                      </ul>
                      <br>"),
-                     column(9,dataTableOutput('variant_case_effects')),
+                     dataTableOutput('variant_case_effects')),
                      column(2, actionButton(inputId = "reset_variant_case_effects", label = "reset dataset", width = '100%'), h4(),
                                actionButton(inputId = "delete_variant_effects", label = "verwijder variant", width = '100%'), h4(),
                                actionButton(inputId = "delete_case_effects", label = "verwijder casus", width = '100%'), h4(),
@@ -691,7 +691,9 @@ ui = fluidPage(
                                      belasting (t.o.v. totaal) dat belastingplichtigen terug zouden krijgen indien zij alle verliezen
                                      zouden mogen verrekenen."), 
                             
-                            dataTableOutput('tab_microeffects')), 
+                            dataTableOutput('tab_microeffects'),
+                            h5("Beste variant per categorie"), helpText("Varianten met de minste ongelijkheid en de laagste overbelasting."),
+                            dataTableOutput('tab_microwinners')), 
                      column(8)
                             
                      ))) 
@@ -1708,12 +1710,36 @@ server = function(input, output) {
       
     }, server = F, rownames = T, selection = 'none', options = list(scrollX = T))
     
+    output$tab_microwinners = renderDataTable({
+      
+      if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
+      out = list()
+      
+      for (i in c(1:nrow(data))){
+        
+        out[[i]] = 
+          
+          cbind(variant = data$variant, N = 2, data.frame(calculate_variant_stats(hvi = data$hvi[i], vv_drempel = data$verlies_drempel[i], 
+                 cf = data$cf[i], cb = data$cb[i],  s2 = data$schijf_2[i], s3 = data$schijf_3[i], t1 = data$tarief_1[i], t2 = data$tarief_2[i], 
+                 t3 = data$tarief_3[i])))
+      }
+      
+      out = do.call(rbind, out)
+      
+      out = data.frame(
+        winnaar = c(out$variant[which(out$gini_grondslag == max(out$gini_grondslag))], 
+                    out$variant[which(out$gini_belasting == max(out$gini_belasting))], 
+                    out$variant[which(out$overbelasting == max(out$overbelasting))]),
+        row.names = c("grondslag ongelijkheid (0-1)", "belasting ongelijkheid (0-1)", "overbelasting (%)")
+      )
+      
+      out
+      
+    }, server = F, rownames = T, selection = 'none', options = list(scrollX = T))
+    
     
     ################################## 2. MACRO ANALYSES ##################################
             
-    
-    
-    
     
     
     
