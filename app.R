@@ -289,11 +289,11 @@ library(gtExtras)
   }
   
   # functie om objectieve variant statistieken te genereren
-  calculate_variant_stats = function(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
+  test = select(readxl::read_xlsx("testdata.xlsx"),c("id", "jaar", "aanwas")) 
+  
+  calculate_variant_stats = function(data = test, hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
     
     # test data
-    test = select(readxl::read_xlsx("testdata.xlsx"),c("id", "jaar", "aanwas"))
-    
     test_new = list()
     test_ideal = list()
     for (i in 1:length(unique(test$id))){
@@ -653,7 +653,7 @@ ui = fluidPage(
                      HTML("De onderstaande tabel bevat de doorrekening van elk van de door u gespecificeerde variant voor elk van de door u opgegeven belastingplichtigen.
                      Bent u ontevreden met de dataset? In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>rij verwijderen</em>.
                      Wil u de tabel opslaan, druk dan op de <em>download</em> knop rechtsboven. Onder de tab <em>inspecteer microvoorbeeld</em> kunt u vervolgens 
-                     de grondslag en belasting berekening voor een enkele casus en een enkele variant inspecteren. Onder de tab <em>inspecteer varianten</em> 
+                     de grondslag en belasting berekening voor een enkele casus en een enkele variant inspecteren. Onder de tab <em>inspecteer micro effecten</em> 
                      worden de gevolgen van elk van de varianten voor de door u opgegeven casi in kaart gebracht. Specifiek wordt er naar een viertal statistieken gekeken:
                      <br><br>
                      <ul>
@@ -682,7 +682,17 @@ ui = fluidPage(
                      )),
                    tabPanel("Inspecteer micro-effecten", 
                      HTML("<br>"),
-                     tableOutput('tab_microeffects')
+                     column(3, h5("Microeffecten per variant"), 
+                            helpText("De onderstaande tabel toont een drietal statistieken die samenvatten welk effect de
+                                     door u opgegeven varianten hebben op de relatie tussen de door u opgegeven belastingplichtigen.
+                                     Grondslag ongelijkheid en belasting ongelijkheid vat de mate waarin belastingplichtigen 
+                                     een verschillend percentage grondslag hebben en belasting betale t.o.v. hun aanwas op een schaal
+                                     van 0 (perfect gelijk) tot 1 (perfect ongelijk). De statistiek overbelasting vat het gemiddeld percentage
+                                     belasting (t.o.v. totaal) dat belastingplichtigen terug zouden krijgen indien zij alle verliezen
+                                     zouden mogen verrekenen."), 
+                            
+                            dataTableOutput('tab_microeffects')), 
+                     column(8)
                             
                      ))) 
             ),
@@ -1674,12 +1684,29 @@ server = function(input, output) {
     
     ############ TAB 3 ###########
     
-    output$tab_microeffects = renderTable({
+    output$tab_microeffects = renderDataTable({
       
-      variant_stats = calculate_variant_stats(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA)
-      variant_stats
+      if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
+      out = list()
       
-    })
+      for (i in c(1:nrow(data))){
+        
+        out[[i]] = 
+          
+          data.frame(
+          t(select(cbind(N = 2, data.frame(calculate_variant_stats(hvi = data$hvi[i], vv_drempel = data$verlies_drempel[i], 
+          cf = data$cf[i], cb = data$cb[i],  s2 = data$schijf_2[i], s3 = data$schijf_3[i], t1 = data$tarief_1[i], t2 = data$tarief_2[i], 
+          t3 = data$tarief_3[i]))),
+          
+          c("N", "gini_grondslag", "gini_belasting", "overbelasting"))), 
+          row.names = c("aantal observaties","grondslag ongelijkheid (0-1)", "belasting ongelijkheid (0-1)", "overbelasting (%)")) %>%
+          setNames(c(data$variant[i])) 
+      }
+      
+      out = do.call(cbind, out)
+      out
+      
+    }, server = F, rownames = T, selection = 'none', options = list(scrollX = T))
     
     
     ################################## 2. MACRO ANALYSES ##################################
