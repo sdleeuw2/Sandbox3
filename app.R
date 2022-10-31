@@ -314,7 +314,7 @@ library(gtExtras)
       
     }
     
-    test_new = do.call(rbind, test_new); rm(test)
+    test_new = do.call(rbind, test_new)
     test_new_agg = aggregate(.~id, test_new, sum)
     test_ideal = do.call(rbind, test_ideal)
     
@@ -1719,7 +1719,7 @@ server = function(input, output) {
         
         out[[i]] = 
           
-          cbind(variant = data$variant, N = 2, data.frame(calculate_variant_stats(hvi = data$hvi[i], vv_drempel = data$verlies_drempel[i], 
+          cbind(variant = data$variant[i], N = 2, data.frame(calculate_variant_stats(hvi = data$hvi[i], vv_drempel = data$verlies_drempel[i], 
                  cf = data$cf[i], cb = data$cb[i],  s2 = data$schijf_2[i], s3 = data$schijf_3[i], t1 = data$tarief_1[i], t2 = data$tarief_2[i], 
                  t3 = data$tarief_3[i])))
       }
@@ -1727,9 +1727,9 @@ server = function(input, output) {
       out = do.call(rbind, out)
       
       out = data.frame(
-        winnaar = c(out$variant[which(out$gini_grondslag == max(out$gini_grondslag))], 
-                    out$variant[which(out$gini_belasting == max(out$gini_belasting))], 
-                    out$variant[which(out$overbelasting == max(out$overbelasting))]),
+        winnaar = c(subset(out, gini_grondslag == min(out$gini_grondslag))$variant[1],
+                    subset(out, gini_belasting == min(out$gini_belasting))$variant[1],
+                    subset(out, overbelasting == min(out$overbelasting))$variant[1]),
         row.names = c("grondslag ongelijkheid (0-1)", "belasting ongelijkheid (0-1)", "overbelasting (%)")
       )
       
