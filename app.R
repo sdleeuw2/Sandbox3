@@ -12,6 +12,7 @@ library(ggforce)
 library(data.table)
 library(ids)
 library(ineq)
+library(gtExtras)
 
 
 
@@ -679,9 +680,17 @@ ui = fluidPage(
                        plotlyOutput("plot_micro"),
                        sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%')
                      )),
-                   tabPanel("Inspecteer micro-effecten")
-                   )) 
+                   tabPanel("Inspecteer micro-effecten", 
+                     HTML("<br>"),
+                     tableOutput('tab_microeffects')
+                            
+                     ))) 
             ),
+          
+          
+          
+          
+          
                 
           # MACRO ANALYSES 
           navbarMenu("Macro analyses",
@@ -871,7 +880,7 @@ server = function(input, output) {
     if (is.null(input$upload_data)){  
       case_data() %>% 
         bind_rows(dat) %>%
-        case_data()   
+        case_data()
     } else { 
       upload_data$data = upload_data$data %>% bind_rows(dat)   
       
@@ -1663,18 +1672,14 @@ server = function(input, output) {
       
     })
     
-    #tabPanel("Inspecteer microvoorbeeld",
-    #         HTML("<br>"),
-    #         sidebarPanel(
-    #           h5("Selecteer casus"), dataTableOutput('select_case_micro'), 
-    #           h5("Selecteer variant"), dataTableOutput('select_variant_micro')),
-    #         mainPanel(
-    #           h5("Toelichting variant"), htmlOutput("micro_tekst", align = "justify"),
-    #           plotlyOutput("plot_micro"),
-    #           sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'),
-    #         )),
-    
     ############ TAB 3 ###########
+    
+    output$tab_microeffects = renderTable({
+      
+      variant_stats = calculate_variant_stats(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA)
+      variant_stats
+      
+    })
     
     
     ################################## 2. MACRO ANALYSES ##################################
