@@ -547,7 +547,7 @@ ui = fluidPage(
                           wordt nadien op random wijze geexprapoleerd naar de jaren 2027 tot en met 2045. Bent u niet tevreden met de dataset? 
                           In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>casus verwijderen</em>.
                           Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
-                          deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
+                          deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>opslaan</em> knop rechtsboven.
                           U kunt vervolgens de grondslag berekening van een enkele belastingplichtige bekijken onder de tab <em>inspecteer casus</em>."),
                           HTML("<br>"), 
                           fluidRow(
@@ -557,7 +557,7 @@ ui = fluidPage(
                           column(2, 
                                  actionButton(inputId = "reset_data", label = "reset dataset", width = '100%'), h4(),
                                  actionButton(inputId = "delete_case", label = "verwijder casus", width = '100%'), h4(),
-                                 downloadButton("download_cases", label = "download", style = "width:100%;")))), 
+                                 downloadButton("download_cases", label = "opslaan", style = "width:100%;")))), 
                        
                 tabPanel(title = "Inspecteer casus",
                          fluidPage(HTML("<br>"), 
@@ -620,7 +620,7 @@ ui = fluidPage(
                   Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u ontevreden met de dataset? 
                   In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>variant verwijderen</em>.
                   Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
-                  deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
+                  deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>opslaan</em> knop rechtsboven.
                   U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>.<br>"
                 ),
                 
@@ -631,7 +631,7 @@ ui = fluidPage(
                   dataTableOutput('variant_data')), 
                   column(2, actionButton(inputId = "reset_data_variant", label = "reset dataset", width = '100%'), h4(),
                   actionButton(inputId = "delete_variant", label = "verwijder variant", width = '100%'), h4(),
-                  downloadButton("download_variants", label = "download", style = "width:100%;")))),
+                  downloadButton("download_variants", label = "opslaan", style = "width:100%;")))),
                        
                   tabPanel(title = "Inspecteer variant",
                            
@@ -666,7 +666,7 @@ ui = fluidPage(
                      column(2, actionButton(inputId = "reset_variant_case_effects", label = "reset dataset", width = '100%'), h4(),
                                actionButton(inputId = "delete_variant_effects", label = "verwijder variant", width = '100%'), h4(),
                                actionButton(inputId = "delete_case_effects", label = "verwijder casus", width = '100%'), h4(),
-                               downloadButton("download_variants_case_effects", label = "download", style = "width:100%;"))
+                               downloadButton("download_variants_case_effects", label = "opslaan", style = "width:100%;"))
                      ),
                    
                    tabPanel("Inspecteer microvoorbeeld",
@@ -681,11 +681,14 @@ ui = fluidPage(
                        uiOutput("micro_3_select_case"), 
                        h5("Selecteer variant"), 
                        helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), 
-                       uiOutput("micro_3_select_variant"), width = 3)),
+                       uiOutput("micro_3_select_variant"), 
+                       downloadButton("download_micro", label = "voorbeeld opslaan", style = "width:100%;"),
+                       width = 3)),
                      
                      mainPanel(
-                       h5("Microvoorbeeld"), htmlOutput("micro_tekst", align = "justify"),
-                       plotlyOutput("plot_micro")
+                       column(6, h5("Microvoorbeeld"), dataTableOutput('tab_micro'), htmlOutput("micro_tekst", align = "justify")),
+                       column(6, h5("Visualisatie microvoorbeeld"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de aanwas (belastbaar en niet belastbaar) en verlies (verrekenbaar en niet verrekenbaar) van de belastingplichtige per belastingjaar."), plotlyOutput("plot_micro"),
+                       sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'))
                      )),
                    
                    tabPanel("Inspecteer micro-effecten", 
@@ -768,7 +771,7 @@ ui = fluidPage(
                               Druk vervolgens op de knop <em>variant toevoegen</em> om de variant toe te voegen. Bent u ontevreden met de dataset? 
                               In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>variant verwijderen</em>.
                               Wil u liever uw data bewerken in excel? Dat kan. Download het template via de <em>download template</em> knop en laadt
-                              deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>download</em> knop rechtsboven.
+                              deze vervolgens op via de <em>data opladen</em> optie. Wil u de ingegeven data opslaan, druk dan op de <em>opslaan</em> knop rechtsboven.
                               U kunt vervolgens de eigenschappen van een door u geselecteerde variant bekijken in de tab <em>inspecteer variant</em>.<br>"),
                               HTML("<br>"), 
                               fluidRow(
@@ -777,7 +780,7 @@ ui = fluidPage(
                                 dataTableOutput('variant_data_macro')), 
                                 column(2, actionButton(inputId = "reset_data_variant_macro", label = "reset dataset", width = '100%'), h4(),
                                 actionButton(inputId = "delete_variant_macro", label = "verwijder variant", width = '100%'), h4(),
-                                downloadButton("download_variants_macro", label = "download", style = "width:100%;")))),
+                                downloadButton("download_variants_macro", label = "opslaan", style = "width:100%;")))),
                     
                     tabPanel(title = "Inspecteer variant",
                              fluidPage(HTML("<br>"), 
@@ -1496,22 +1499,12 @@ server = function(input, output) {
       input_jaar = input$plot_variant_jaar
       
       if (is.null(input$upload_data_variant)){dat_variant = variant_data_input()} else {dat_variant = upload_variant_data$data}
+      dat_variant = subset(dat_variant, variant == input$micro_1_select_variant_selection)
       
       if (nrow(dat_variant) > 0){
         
-        if (!is.null(input$variant_names_rows_selected)){
-          dat_variant_id = dat_variant %>%
-            filter(row_number() %in% input$variant_names_rows_selected) %>%
-            select("variant")
-          dat_variant_id = dat_variant_id$variant[nrow(dat_variant_id)]
-        } else {
-          dat_variant_id = dat_variant$variant[1]
-        }
-        
-        dat_variant = subset(dat_variant, variant == dat_variant_id)
-        
         # PARAMETERS
-        naam_variant = dat_variant_id
+        naam_variant = input$micro_1_select_variant_selection
         hvi = dat_variant$hvi
         vv_drempel = -dat_variant$verlies_drempel
         vv_cf = input_jaar - dat_variant$cf - 0.5; if (vv_cf < 2026){vv_cf = 2026 - 0.5}
@@ -1523,7 +1516,7 @@ server = function(input, output) {
         
         # HIER AANPASSEN!!! randomly generate case knop
         aanwas = c(0.5*hvi, hvi + 0.5*hvi, 2*hvi, 3*hvi, 4*hvi,
-                   3*hvi, 2*hvi, 2.5*hvi, 0.7*hvi, 4*vv_drempel, 3*vv_drempel, 
+                   3*hvi, 2*hvi, 2*vv_drempel, 0.7*vv_drempel, 4*hvi, 3*vv_drempel, 
                    1.5*vv_drempel, 0.5*vv_drempel, 1.3*hvi, 2*hvi, 0.2*hvi,
                    0.5*hvi, 0.5*vv_drempel, 1.1*vv_drempel, 0.2*vv_drempel)
         jaar = c(2026:(2025+length(aanwas)))
@@ -1699,6 +1692,32 @@ server = function(input, output) {
     
     ###### MAIN PANEL ######
     
+    # MICRO VOORBEELD TABEL
+    output$tab_micro = renderDataTable({
+      
+      # variant data 
+      if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
+      variant = input$micro_3_select_variant_selection
+      variant_dat = subset(variant_dat, variant == variant)
+      
+      # case data
+      if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
+      omschrijving = input$micro_3_select_case_selection
+      case_dat = subset(case_dat, omschrijving == omschrijving)
+      case_dat = verreken_verlies(case_dat, hvi = variant_dat$hvi, cf = variant_dat$cf, cb = variant_dat$cb, drempel = variant_dat$verlies_drempel)
+      
+      rbind(
+        c("Aanwas:", number_to_money(sum(subset(case_dat, aanwas > 0)$aanwas, na.rm = T))),
+        c("- Heffingvrij Inkomen:", number_to_money(-nrow(subset(case_dat, aanwas > variant_dat$hvi))*variant_dat$hvi)),
+        c(paste0("- Verrekenbaar verlies (verlies boven €", variant_dat$verlies_drempel,"):"), 
+          0),
+        c("= Grondslag:", number_to_money(sum(case_dat$grondslag, na.rm = T)))) %>%
+        data.frame() %>%
+        setNames(c(NULL, "Bedrag"))
+      
+      
+    }, options = list(dom = 't'), rownames = F)
+    
     # MICRO VOORBEELD TEKST 
     output$micro_tekst = renderText({ 
       
@@ -1745,13 +1764,7 @@ server = function(input, output) {
         
         if(aanwas > 0){grondslag_perc = grondslag / aanwas} else {grondslag_perc = 0} 
         if(aanwas > 0){belasting_perc = belasting / aanwas} else {belasting_perc = 0} 
-        #naam = temp$case_name
         
-        
-        #grondslag_perc = temp$grondslag_perc
-        #grondslag = temp$grondslag
-        #belasting = temp$belasting
-        #belasting_perc = temp$belasting_perc
       
       # data voor een enkel jaar 
       } else {
@@ -1804,8 +1817,8 @@ server = function(input, output) {
                     number_to_money(grondslag), ". Dit is ", percentify(grondslag_perc), " van de totale aanwas.<br><br>")
       
       if(schijf_aantal == 1){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " over deze grondslag ", percentify(t1), " belasting. ")}
-      if(schijf_aantal == 2){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " over deze grondslag ", percentify(t1), " belasting. ")}
-      if(schijf_aantal == 3){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " over deze grondslag ", percentify(t1), " belasting. ")}
+      if(schijf_aantal == 2){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " ", percentify(t1), "belastig over grondslag tot ", number_to_money(s2),  " en ", percentify(t2), " over het resterend bedrag. ")}
+      if(schijf_aantal == 3){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " ", percentify(t1), "belastig over grondslag tot ", number_to_money(s2),  ", ", percentify(t2), " over grondslag tot ", number_to_money(s3), " en ", percentify(t3), " over het resterend bedrag. ")}
       
       text = paste0(text, "In totaal heeft belastingplichtige ", number_to_money(belasting), " betaalt. Dit is ", percentify(belasting_perc), " van zijn aanwas.")
       
@@ -1820,16 +1833,11 @@ server = function(input, output) {
       
       # variant data 
       if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
-      variant = variant_dat[input$select_variant_micro_rows_selected, "variant"]
-      variant = as.character(variant[1])
-      variant_dat = subset(variant_dat, variant == variant)
+      variant_dat = subset(variant_dat, variant == input$micro_3_select_variant_selection)
       
       # case data
       if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
-      omschrijving_id = subset(case_dat, jaar == 2026)
-      omschrijving_id = omschrijving_id[input$select_case_micro_rows_selected, "omschrijving"]
-      omschrijving_id = as.character(omschrijving_id[1]) 
-      case_dat = subset(case_dat, omschrijving == omschrijving_id)
+      case_dat = subset(case_dat, omschrijving == input$micro_3_select_case_selection)
       
       
       # PARAMETERS
@@ -1948,10 +1956,6 @@ server = function(input, output) {
     }, server = F, rownames = T, selection = 'none', options = list(scrollX = T))
     
     
-    #column(9, h5("Aanwas, grondslag en belasting per belastingplichtige"), plotlyOutput("plot_micro_overzicht")),
-    #column(3, h5("Grondslag ongelijkheid"), plotlyOutput("plot_micro_grondslag")),
-    #column(3, h5("Belasting ongelijkheid"), plotlyOutput("plot_micro_belasting")),
-    #column(3, h5("Overbelasting"), plotlyOutput("plot_micro_overbelasting"))
     
     output$plot_micro_overzicht = renderPlotly({
       
