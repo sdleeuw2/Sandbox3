@@ -1733,10 +1733,18 @@ server = function(input, output) {
         tijd = "gedurende de periode van 2026 tot 2025"
         tijd_2 = "over deze twintig jaar heen"
         tijd_3 = "In twintig jaar"
+        tijd_4 = "elk jaar"
+        
+        aanwas = temp$aanwas
         grondslag_na_hvi = sum(subset(case_dat, aanwas > variant_dat$hvi)$aanwas, na.rm = T)
         verlies = temp$verlies
         verrekend_verlies = temp$verrekend_verlies
+        verrekend_verlies_perc = temp$verrekend_verlies_perc
+        grondslag = temp$grondslag
+        belasting = temp$belasting
         
+        if(aanwas > 0){grondslag_perc = grondslag / aanwas} else {grondslag_perc = 0} 
+        if(aanwas > 0){belasting_perc = belasting / aanwas} else {belasting_perc = 0} 
         #naam = temp$case_name
         
         
@@ -1749,11 +1757,27 @@ server = function(input, output) {
       } else {
         
         temp = subset(verreken_verlies(data = case_dat, hvi = variant_dat$hvi, cf = variant_dat$cf, cb = variant_dat$cb), jaar == as.numeric(input$micro_3_select_year)) 
+        
         tijd = paste0("in ", input$micro_3_select_year)
         tijd_2 = "in dit jaar"
         tijd_3 = "In deze jaren"
+        tijd_4 = "in belastingjaar"
+        
+        aanwas = temp$aanwas  
         grondslag_na_hvi = temp$aanwas - variant_dat$hvi; if(grondslag_na_hvi<0){grondslag_na_hvi = 0}
-        verlies = sum(subset(case_dat, aanwas < 0 & jaar > as.numeric(input$micro_3_select_year) - variant_dat$cf & jaar > as.numeric(input$micro_3_select_year) + variant_dat$cb)$aanwas, na.rm = T)
+        vv_dat = subset(case_dat, aanwas < 0 & jaar > as.numeric(input$micro_3_select_year) - variant_dat$cf & jaar > as.numeric(input$micro_3_select_year) + variant_dat$cb)
+        
+        verlies = sum(vv_dat$aanwas, na.rm = T)
+        verrekend_verlies = sum(c(temp$cf,temp$cb), na.rm = T)
+        grondslag = temp$grondslag
+        belasting = sum(bepaal_belasting(grondslag = grondslag, schijf_2 = variant_dat$schijf_2, schijf_3 = variant_dat$schijf_3,
+                        tarief_1 = variant_dat$tarief_1, tarief_2 = variant_dat$tarief_2, tarief_3 = variant_dat$tarief_3)$belasting, na.rm = T)
+        if (aanwas > 0){belasting_perc = (belasting / aanwas) * 100} else {belasting_perc = 0}
+        
+        if (verlies > 0){verrekend_verlies_perc = (verrekend_verlies / verlies) * 100} else {verrekend_verlies_perc = 0}
+        if(aanwas > 0){grondslag_perc = (grondslag / aanwas)*100} else {grondslag_perc = 0}
+        
+        
       }
       
       naam = input$micro_3_select_case_selection
@@ -1774,12 +1798,16 @@ server = function(input, output) {
                     in mindering gebracht bij de aanwas. Na verrekening van het hvi staat de grondslag van belastingplichtige ", tijd_2, " gelijk aan ", number_to_money(grondslag_na_hvi), ". 
                     <b>Verliesverrekening.</b> Belastingplichtige mag ", tijd_2, " verliezen groter dan ", number_to_money(variant_dat$verlies_drempel), 
                     " verrekenen van de ", variant_dat$cf, " jaar voor het belastingjaar en de ", variant_dat$cb, " jaar na het belastingjaar (teruggaand tot 2026). 
-                    ", tijd_3, " heeft belastingplichtige ", number_to_money(verlies), " verlies geleden, waarvan hij ", number_to_money(0), " (", 
-                    percentify(0), ") heeft kunnen verrekenen. <b>Grondslag.</b> De grondslag na verliesverrekening is daarmee gelijk aan ", 
-                    number_to_money(0), ". Dit is ", percentify(0), " van de totale aanwas.<br><br>")
+                    ", tijd_3, " heeft belastingplichtige ", number_to_money(verlies), " verlies geleden, waarvan hij ", number_to_money(verrekend_verlies), " (", 
+                    percentify(verrekend_verlies_perc), ") heeft kunnen verrekenen. <b>Grondslag.</b> 
+                    De grondslag na verliesverrekening is daarmee gelijk aan ", 
+                    number_to_money(grondslag), ". Dit is ", percentify(grondslag_perc), " van de totale aanwas.<br><br>")
       
-      text = paste0(text, "Belastingplichtige heeft gedurende deze twintig jaar een uniform tarief betaalt over zijn grondslag van ", percentify(0), ". ")
-      text = paste0(text, "In totaal heeft belastingplichtige ", number_to_money(0), " betaalt. Dit is ", percentify(0), " van zijn aanwas.")
+      if(schijf_aantal == 1){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " over deze grondslag ", percentify(t1), " belasting. ")}
+      if(schijf_aantal == 2){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " over deze grondslag ", percentify(t1), " belasting. ")}
+      if(schijf_aantal == 3){text = paste0(text, "Belastingplichtige betaalt ", tijd_4, " over deze grondslag ", percentify(t1), " belasting. ")}
+      
+      text = paste0(text, "In totaal heeft belastingplichtige ", number_to_money(belasting), " betaalt. Dit is ", percentify(belasting_perc), " van zijn aanwas.")
       
       
       
