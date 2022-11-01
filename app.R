@@ -636,25 +636,16 @@ ui = fluidPage(
                   tabPanel(title = "Inspecteer variant",
                            
                    fluidPage(HTML("<br>"), 
-                     fluidRow(
-                       h5("Welke variant wilt u bekijken?"), uiOutput("micro_1_select_variant"),
-                       htmlOutput("variant_tekst", align = "justify"), 
-                       fluidRow(column(6, h5("Plot variant"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de specificaties van de variant."), plotlyOutput("plot_variant")),
-                       column(6, HTML("<br>"))), 
-                       fluidRow(column(1),
-                       column(5, sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'))
-                     )))
-                           
-                           
-                           
-                  #fluidPage(HTML("<br>"), 
-                  #fluidRow(
-                  #column(3, h5("Welke variant wilt u bekijken?"), dataTableOutput('variant_names'), HTML("<br>")),
-                  #column(9, h5("Toelichting variant"), htmlOutput("variant_tekst", align = "justify"),
-                  # plotlyOutput("plot_variant"),
-                  #
-                  #)))
-                  )))),
+                             
+                             fluidRow(
+                               h5("Welke variant wilt u bekijken?"), uiOutput("micro_1_select_variant"),
+                               column(5, h5(""), htmlOutput("variant_tekst", align = "justify")),
+                               column(7, h5("Visualisatie variant"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de specificaties van de variant."), 
+                                      plotlyOutput("plot_variant"), 
+                                      sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'))
+                             )
+                    ))))),
+            
             tabPanel("Stap 3: Bekijk resultaten",
                  tabsetPanel(
                    tabPanel("Dataset", 
@@ -680,15 +671,17 @@ ui = fluidPage(
                    
                    tabPanel("Inspecteer microvoorbeeld",
                      HTML("<br>"),
-                     sidebarPanel(
-                       h5("Selecteer casus"), helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), dataTableOutput('select_case_micro'), 
-                       h5("Selecteer variant"), helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), dataTableOutput('select_variant_micro'),
-                       width = 3),
-                     mainPanel(
-                       h5("Microvoorbeeld"), htmlOutput("micro_tekst", align = "justify"),
-                       plotlyOutput("plot_micro"),
-                       sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%')
-                     )),
+                     fluidRow(column(2, h5("Selecteer casus")), column(2, h5("Selecteer variant")))
+                     ),
+                     # sidebarPanel(
+                     # h5("Selecteer casus"), helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), dataTableOutput('select_case_micro'), 
+                     # h5("Selecteer variant"), helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), dataTableOutput('select_variant_micro'),
+                     #  width = 3),
+                     # mainPanel(
+                     # h5("Microvoorbeeld"), htmlOutput("micro_tekst", align = "justify"),
+                     # plotlyOutput("plot_micro"),
+                     #  sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%')
+                     #)),
                    tabPanel("Inspecteer micro-effecten", 
                      HTML("<br>"),
                      column(3, h5("Microeffecten per variant"), 
@@ -1368,8 +1361,128 @@ server = function(input, output) {
     # DATA CASE NAMES
     output$micro_1_select_variant = renderUI({
       if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
-      selectInput("micro_1_select_variat_selection", label = NULL, choices = data$variant)
+      selectInput("micro_1_select_variant_selection", label = NULL, choices = data$variant)
     })
+    
+    # TEKST VARIANT 
+    output$variant_tekst = renderText({
+      
+      if (is.null(input$upload_data_variant)){dat_variant = variant_data_input()} else {dat_variant = upload_variant_data$data}
+      
+      dat_variant = subset(dat_variant, variant == input$micro_1_select_variant_selection)
+      
+      if (nrow(dat_variant) > 0){
+        
+        # PARAMETERS
+        naam_variant = input$micro_1_select_variant_selection
+        
+        # heffingvrij inkomen
+        hvi = dat_variant$hvi
+        hvi_verschil = hvi - 1000
+        
+        # verlies verrekeningsdrempel
+        vv_drempel = dat_variant$verlies_drempel
+        vv_drempel_verschil = vv_drempel - 1000
+        
+        vv_cf = dat_variant$cf
+        vv_cb = dat_variant$cb
+        #vv_cf_verschil = vv_cf - 9
+        #vv_cb_verschil = vv_cb - 1
+        
+        # tarieven en schijven
+        s2 = dat_variant$schijf_2; s3 = dat_variant$schijf_3
+        t1 = dat_variant$tarief_1; t2 = dat_variant$tarief_2; t3 = dat_variant$tarief_3
+        schijf_aantal = 1; if (!is.na(t3) & !is.na(s3)){schijf_aantal = 3};  if (is.na(t3) & is.na(s3) & !is.na(t2) & !is.na(s2)){schijf_aantal = 2} 
+        
+        # text 
+        text = paste0("Variant <i>", naam_variant, "</i> kent een heffingvrij inkomen <i>", number_to_money(hvi), "</i>. 
+                    Iedereen die een inkomen uit vermogen heeft onder deze grens, betaalt geen belasting in box 3. 
+                    De hoogte van het hvi bepaalt eveneens het aantal burgers dat een beroep kan doen op verliesverrekening.
+                    Variant voorziet een verliesverrekeningsdrempel van <i>", number_to_money(vv_drempel), "</i>; <i>",  vv_cf, " jaar</i> voorwaartse
+                    verliesverrekening en <i>", vv_cb, " jaar</i> achterwaartse verliesverrekening. Iedere burger met 
+                    (1) een belastbaar inkomen uit vermogen in belastingjaar ", input$plot_variant_jaar, ", d.w.z. een inkomen
+                    boven het hvi en (2) onverrekende verliezen uit de jaren <i>", input$plot_variant_jaar - vv_cf, " tot ", input$plot_variant_jaar + vv_cb, "</i> 
+                    kan deze in mindering brengen bij de grondslag van het belastingjaar. ")
+        
+        if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Alle belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag van het belastingjaar.")}
+        if (schijf_aantal == 2){text = paste0(text, "Variant kent een progressief tarief met twee schijven. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
+                                              "</i> en <i>", percentify(t2), "</i> over de rest."  )}
+        if (schijf_aantal == 3){text = paste0(text, "Variant kent een progressief tarief met drie schijven.Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
+                                              "</i>; <i>", percentify(t2), "</i> tot <i>", number_to_money(s3), "</i> en <i>", percentify(t3), "</i> over de rest." )}
+        
+        # toelichting grafiek
+        text = paste0(text, "<br><br><i>De grafiek verschaft een visualisatie van de door u gespecificeerde variant 
+                     voor een voorbeeld belastingplichtige. Het grijze gebied boven de nul is het heffingvrij inkomen en onder de 
+                     nul niet verrekenbare verliezen (daar deze onder de verliesverrekeningsdrempel zitten). Het groene gebied toont 
+                     de aanwas die in aanmerking komt voor achterwaartse verliesverrekening en het rode gebied de aanwas die in aanmerking
+                     komt voor voorwaartse verliesverrekening. Beweeg met uw muis over de jaren om te inspecteren of de aanwas van dat
+                     jaar onder het hvi, belastbaar inkomen, onverrekenbaar verlies, of verrekenbaar verlies valt. U kunt het 
+                     belastingjaar veranderen door de slider te verschuiven. </i> <br><br>")
+        
+        
+        ################ NIEUW VOOR MACRO ##################
+        #text = "De door u geselecteerde variant wordt steeds vergeleken met de 'standaard variant'. 
+        #Onder de standaard variant verstaan wij een variant met (1) hvi van €1000, (2) verlies verrekeningsdrempel van €1000,
+        #(3) 9 jaar voorwaartse verliesverrekening, (4) één jaar achterwaartse verliesverrekening en (5) een uniform tarief van 34%. <br><br>"
+        
+        # HEFFING VRIJ INKOMEN
+        #text = paste0(text, "Variant <i>", naam_variant, "</i> kent een heffinvrij inkomen van <i>", number_to_money(hvi), "</i>. ")
+        #if (hvi_verschil > 0){text = paste0(text, "Dat is <i>", number_to_money(hvi_verschil), "</i> meer dan onder de standaard variant. ")
+        #} else if (hvi_verschil < 0){text = paste0(text, "Dat is <i>", number_to_money(abs(hvi_verschil)), "</i> minder dan onder de standaard variant. ")
+        #} else {text = paste0(text, "Dat is evenveel als het hvi onder de standaard variant. ")}
+        
+        # VERLIESVERREKENING 
+        #text = paste0(text, "Variant voorziet een drempel van <i>", number_to_money(vv_drempel), "</i>. ")
+        #if (vv_drempel_verschil > 0){text = paste0(text, "Dat is <i>", number_to_money(vv_drempel_verschil), "</i> meer dan onder de standaard variant. ")
+        #} else if (vv_drempel_verschil < 0){text = paste0(text, "Dat is <i>", number_to_money(abs(vv_drempel_verschil)), "</i> minder dan onder de standaard variant. ")
+        #} else {text = paste0(text, "Dat is evenveel als de drempel onder de standaard variant. ")}
+        
+        #text = paste0(text, "Variant faciliteert <i>", vv_cf, "</i> jaar voorwaartse verliesverrekening en <i>", vv_cb, "</i> achterwaartse verliesverrekening. Dat is respectievelijk ")
+        #if (vv_cf_verschil > 0){
+        #  text = paste0(text, "<i> ", vv_cf_verschil, " jaar</i> meer en ")
+        #} else if (vv_cf_verschil < 0){
+        #  text = paste0(text, "<i> ", abs(vv_cf_verschil), " jaar</i> minder en ")
+        #} else {
+        #  text = paste0(text, "<i> evenveel jaar</i> en ")
+        #}
+        
+        #if (vv_cb_verschil > 0){
+        #  text = paste0(text, "<i> ", vv_cb_verschil, " jaar</i> meer dan onder de standaard variant. ")
+        #} else if (vv_cb_verschil < 0){
+        #  text = paste0(text, "<i> ", abs(vv_cb_verschil), " jaar</i> minder dan onder de standaard variant. ")
+        #} else {
+        #  text = paste0(text, "<i> evenveel jaar</i> als onder de standaard variant. ")
+        #}
+        
+        # TARIEF EN SCHIJFGRENZEN
+        
+        
+        
+        
+        # PROGRESSIVITEIT VAN TARIEF
+        #text = paste0(text, "<b>Progressiviteit tarief.</b> ")
+        #if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag. ")}
+        #if (schijf_aantal == 2){text = paste0(text, "Variant kent een progressief tarief met twee schijven. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
+        #                                      "</i> en <i>", percentify(t2), "</i> over de rest."  )}
+        #if (schijf_aantal == 3){text = paste0(text, "Variant kent een progressief tarief met drie schijven.Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
+        #                                      "</i>; <i>", percentify(t2), "</i> tot <i>", number_to_money(s3), "</i> en <i>", percentify(t3), "</i> over de rest." )}
+        
+        #text = paste0(text, "Het versterken van de progressiviteit heeft volgende gevolgen: <br><br>
+        
+        #                  <ul>
+        #                  <li>burgers met middelgrote rendementen betalen minder en burgers met grote rendementen meer; </li>
+        #                  <li>de staat ondervindt in beginsel een opbrengst; </li>
+        #                  <li>in combinatie met verliesverrekening, is deze opbrengst instabieler. </li>
+        #                  </ul>")
+        #} else {
+        #  text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
+        
+      }
+      
+      text
+      
+    })
+    
     
     # PLOT VARIANT
     output$plot_variant = renderPlotly({
@@ -1979,133 +2092,6 @@ server = function(input, output) {
       
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 18, scrollX = T))
     
-    # TEKST VARIANT 
-    output$variant_tekst = renderText({
-      
-      if (is.null(input$upload_data_variant)){dat_variant = variant_data_input()} else {dat_variant = upload_variant_data$data}
-      
-      if (!is.null(input$variant_names_rows_selected)){
-        dat_variant_id = dat_variant %>%
-          filter(row_number() %in% input$variant_names_rows_selected) %>%
-          select("variant")
-        dat_variant_id = dat_variant_id$variant[nrow(dat_variant_id)]
-      } else {
-        dat_variant_id = dat_variant$variant[1]
-      }
-      
-      dat_variant = subset(dat_variant, variant == dat_variant_id)
-      
-      if (nrow(dat_variant) > 0){
-      
-      # PARAMETERS
-      naam_variant = dat_variant_id
-      
-      # heffingvrij inkomen
-      hvi = dat_variant$hvi
-      hvi_verschil = hvi - 1000
-      
-      # verlies verrekeningsdrempel
-      vv_drempel = dat_variant$verlies_drempel
-      vv_drempel_verschil = vv_drempel - 1000
-      
-      vv_cf = dat_variant$cf
-      vv_cb = dat_variant$cb
-      #vv_cf_verschil = vv_cf - 9
-      #vv_cb_verschil = vv_cb - 1
-      
-      # tarieven en schijven
-      s2 = dat_variant$schijf_2; s3 = dat_variant$schijf_3
-      t1 = dat_variant$tarief_1; t2 = dat_variant$tarief_2; t3 = dat_variant$tarief_3
-      schijf_aantal = 1; if (!is.na(t3) & !is.na(s3)){schijf_aantal = 3};  if (is.na(t3) & is.na(s3) & !is.na(t2) & !is.na(s2)){schijf_aantal = 2} 
-      
-      # text 
-      text = paste0("Variant <i>", naam_variant, "</i> kent een heffingvrij inkomen <i>", number_to_money(hvi), "</i>. 
-                    Iedereen die een inkomen uit vermogen heeft onder deze grens, betaalt geen belasting in box 3. 
-                    De hoogte van het hvi bepaalt eveneens het aantal burgers dat een beroep kan doen op verliesverrekening.
-                    Variant voorziet een verliesverrekeningsdrempel van <i>", number_to_money(vv_drempel), "</i>; <i>",  vv_cf, " jaar</i> voorwaartse
-                    verliesverrekening en <i>", vv_cb, " jaar</i> achterwaartse verliesverrekening. Iedere burger met 
-                    (1) een belastbaar inkomen uit vermogen in belastingjaar ", input$plot_variant_jaar, ", d.w.z. een inkomen
-                    boven het hvi en (2) onverrekende verliezen uit de jaren <i>", input$plot_variant_jaar - vv_cf, " tot ", input$plot_variant_jaar + vv_cb, "</i> 
-                    kan deze in mindering brengen bij de grondslag van het belastingjaar. ")
-      
-      if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Alle belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag van het belastingjaar.")}
-      if (schijf_aantal == 2){text = paste0(text, "Variant kent een progressief tarief met twee schijven. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
-                                           "</i> en <i>", percentify(t2), "</i> over de rest."  )}
-      if (schijf_aantal == 3){text = paste0(text, "Variant kent een progressief tarief met drie schijven.Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
-                                            "</i>; <i>", percentify(t2), "</i> tot <i>", number_to_money(s3), "</i> en <i>", percentify(t3), "</i> over de rest." )}
-      
-      # toelichting grafiek
-      text = paste0(text, "<br><br><b>De onderstaande grafiek verschaft een visualisatie van de door u gespecificeerde variant 
-                    voor een voorbeeld belastingplichtige. Het grijze gebied boven de nul is het heffingvrij inkomen en onder de 
-                    nul niet verrekenbare verliezen (daar deze onder de verliesverrekeningsdrempel zitten). Het groene gebied toont 
-                    de aanwas die in aanmerking komt voor achterwaartse verliesverrekening en het rode gebied de aanwas die in aanmerking
-                    komt voor voorwaartse verliesverrekening. Beweeg met uw muis over de jaren om te inspecteren of de aanwas van dat
-                    jaar onder het hvi, belastbaar inkomen, onverrekenbaar verlies, of verrekenbaar verlies valt. U kunt het 
-                    belastingjaar veranderen door de slider te verschuiven. <br><br>")
-      
-      
-      ################ NIEUW VOOR MACRO ##################
-      #text = "De door u geselecteerde variant wordt steeds vergeleken met de 'standaard variant'. 
-      #Onder de standaard variant verstaan wij een variant met (1) hvi van €1000, (2) verlies verrekeningsdrempel van €1000,
-      #(3) 9 jaar voorwaartse verliesverrekening, (4) één jaar achterwaartse verliesverrekening en (5) een uniform tarief van 34%. <br><br>"
-      
-      # HEFFING VRIJ INKOMEN
-      #text = paste0(text, "Variant <i>", naam_variant, "</i> kent een heffinvrij inkomen van <i>", number_to_money(hvi), "</i>. ")
-      #if (hvi_verschil > 0){text = paste0(text, "Dat is <i>", number_to_money(hvi_verschil), "</i> meer dan onder de standaard variant. ")
-      #} else if (hvi_verschil < 0){text = paste0(text, "Dat is <i>", number_to_money(abs(hvi_verschil)), "</i> minder dan onder de standaard variant. ")
-      #} else {text = paste0(text, "Dat is evenveel als het hvi onder de standaard variant. ")}
-      
-      # VERLIESVERREKENING 
-      #text = paste0(text, "Variant voorziet een drempel van <i>", number_to_money(vv_drempel), "</i>. ")
-      #if (vv_drempel_verschil > 0){text = paste0(text, "Dat is <i>", number_to_money(vv_drempel_verschil), "</i> meer dan onder de standaard variant. ")
-      #} else if (vv_drempel_verschil < 0){text = paste0(text, "Dat is <i>", number_to_money(abs(vv_drempel_verschil)), "</i> minder dan onder de standaard variant. ")
-      #} else {text = paste0(text, "Dat is evenveel als de drempel onder de standaard variant. ")}
-      
-      #text = paste0(text, "Variant faciliteert <i>", vv_cf, "</i> jaar voorwaartse verliesverrekening en <i>", vv_cb, "</i> achterwaartse verliesverrekening. Dat is respectievelijk ")
-      #if (vv_cf_verschil > 0){
-      #  text = paste0(text, "<i> ", vv_cf_verschil, " jaar</i> meer en ")
-      #} else if (vv_cf_verschil < 0){
-      #  text = paste0(text, "<i> ", abs(vv_cf_verschil), " jaar</i> minder en ")
-      #} else {
-      #  text = paste0(text, "<i> evenveel jaar</i> en ")
-      #}
-      
-      #if (vv_cb_verschil > 0){
-      #  text = paste0(text, "<i> ", vv_cb_verschil, " jaar</i> meer dan onder de standaard variant. ")
-      #} else if (vv_cb_verschil < 0){
-      #  text = paste0(text, "<i> ", abs(vv_cb_verschil), " jaar</i> minder dan onder de standaard variant. ")
-      #} else {
-      #  text = paste0(text, "<i> evenveel jaar</i> als onder de standaard variant. ")
-      #}
-      
-      # TARIEF EN SCHIJFGRENZEN
-      
-      
-      
-          
-      # PROGRESSIVITEIT VAN TARIEF
-      #text = paste0(text, "<b>Progressiviteit tarief.</b> ")
-      #if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag. ")}
-      #if (schijf_aantal == 2){text = paste0(text, "Variant kent een progressief tarief met twee schijven. Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
-      #                                      "</i> en <i>", percentify(t2), "</i> over de rest."  )}
-      #if (schijf_aantal == 3){text = paste0(text, "Variant kent een progressief tarief met drie schijven.Belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag tot <i>", number_to_money(s2), 
-      #                                      "</i>; <i>", percentify(t2), "</i> tot <i>", number_to_money(s3), "</i> en <i>", percentify(t3), "</i> over de rest." )}
-      
-      #text = paste0(text, "Het versterken van de progressiviteit heeft volgende gevolgen: <br><br>
-                          
-      #                  <ul>
-      #                  <li>burgers met middelgrote rendementen betalen minder en burgers met grote rendementen meer; </li>
-      #                  <li>de staat ondervindt in beginsel een opbrengst; </li>
-      #                  <li>in combinatie met verliesverrekening, is deze opbrengst instabieler. </li>
-      #                  </ul>")
-      #} else {
-      #  text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
-      
-      }
-      
-      text
-      
-    })
     
     
     
