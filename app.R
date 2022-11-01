@@ -561,13 +561,11 @@ ui = fluidPage(
                        
                 tabPanel(title = "Inspecteer casus",
                          fluidPage(HTML("<br>"), 
-                         fluidRow(
-                           column(3, h5("Welke casus wilt u bekijken?"), dataTableOutput('case_names')),
-                           column(9, h5("Grondslag berekening 2026"), 
-                                  htmlOutput("grondslag_tekst", align = "justify"), HTML("<br>"),
-                                  h5("Grondslag 2026-2045"),
-                                  htmlOutput("grondslag_grafieken", align = "justify"),
-                                  plotlyOutput("plot_grondslag")))))
+                            fluidRow(
+                              h5("Welke casus wilt u bekijken?"), uiOutput("micro_1_select_case"),
+                              htmlOutput("grondslag_tekst", align = "justify"), 
+                              column(6, h5("Plot grondslag 2026-2045"), plotlyOutput("plot_grondslag"))
+                            )))
                      ))),
             
             # STAP 2: WELKE VARIANTEN WILT U DOORREKENEN?
@@ -636,25 +634,36 @@ ui = fluidPage(
                   downloadButton("download_variants", label = "download", style = "width:100%;")))),
                        
                   tabPanel(title = "Inspecteer variant",
-                  fluidPage(HTML("<br>"), 
-                  fluidRow(
-                  column(3, h5("Welke variant wilt u bekijken?"), dataTableOutput('variant_names'), HTML("<br>")),
-                  column(9, h5("Toelichting variant"), htmlOutput("variant_tekst", align = "justify"),
-                   plotlyOutput("plot_variant"),
-                  sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%')
-                  ))))))       
-                     
-                     
-                     ),
+                           
+                   fluidPage(HTML("<br>"), 
+                     fluidRow(
+                       h5("Welke variant wilt u bekijken?"), uiOutput("micro_1_select_variant"),
+                       htmlOutput("variant_tekst", align = "justify"), 
+                       fluidRow(column(6, h5("Plot variant"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de specificaties van de variant."), plotlyOutput("plot_variant")),
+                       column(6, HTML("<br>"))), 
+                       fluidRow(column(1),
+                       column(5, sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'))
+                     )))
+                           
+                           
+                           
+                  #fluidPage(HTML("<br>"), 
+                  #fluidRow(
+                  #column(3, h5("Welke variant wilt u bekijken?"), dataTableOutput('variant_names'), HTML("<br>")),
+                  #column(9, h5("Toelichting variant"), htmlOutput("variant_tekst", align = "justify"),
+                  # plotlyOutput("plot_variant"),
+                  #
+                  #)))
+                  )))),
             tabPanel("Stap 3: Bekijk resultaten",
                  tabsetPanel(
                    tabPanel("Dataset", 
                      HTML("<br>"),
-                     column(9, HTML("De onderstaande tabel bevat de doorrekening van elk van de door u gespecificeerde variant voor elk van de door u opgegeven belastingplichtigen.
+                     column(10, HTML("De onderstaande tabel bevat de doorrekening van elk van de door u gespecificeerde variant voor elk van de door u opgegeven belastingplichtigen.
                      Bent u ontevreden met de dataset? In het onderstaande luik kunt u alle data te verwijderen middels de <em>reset</em> knop of een enkele <em>rij verwijderen</em>.
                      Wil u de tabel opslaan, druk dan op de <em>download</em> knop rechtsboven. Onder de tab <em>inspecteer microvoorbeeld</em> kunt u vervolgens 
                      de grondslag en belasting berekening voor een enkele casus en een enkele variant inspecteren. Onder de tab <em>inspecteer micro effecten</em> 
-                     worden de gevolgen van elk van de varianten voor de door u opgegeven casi in kaart gebracht. Specifiek wordt er naar een viertal statistieken gekeken:
+                     worden de gevolgen van elk van de varianten voor de door u opgegeven casi in kaart gebracht. Specifiek wordt er naar een drietal statistieken gekeken:
                      <br><br>
                      <ul>
                      <li><b>grondslag ongelijkheid</b>, m.n. de mate waarin het percentage grondslag (t.o.v. aanwas) verschilt tussen de door u opgegeven belastingplichtigen  (0-1);</li>
@@ -694,7 +703,10 @@ ui = fluidPage(
                             dataTableOutput('tab_microeffects'),
                             h5("Beste variant per categorie"), helpText("Varianten met de minste ongelijkheid en de laagste overbelasting."),
                             dataTableOutput('tab_microwinners')), 
-                     column(8)
+                            column(4, h5("Selecteer variant"), 
+                                   uiOutput("plot_micro_select_variant_1_choices"),
+                                   plotlyOutput("plot_micro_variant_1")),
+                            column(4, h5("Selecteer andere variant"), plotlyOutput("plot_micro_comparison_2")),
                             
                      ))) 
             ),
@@ -788,6 +800,25 @@ ui = fluidPage(
 
 # SERVER
 server = function(input, output) {
+  
+  #selectInput('plot_micro_select_variant_1', label = NULL, choices = c("Geen variant beschikbaar")),
+  #plotlyOutput("plot_micro_variant_1")),
+  
+  #fluidPage(HTML("<br>"), 
+  #          fluidRow(
+  #            h5("Welke casus wilt u bekijken?"),
+  #            uiOutput("select_case"),
+  #            h5("Grondslag berekening 2026"),
+  #            htmlOutput("grondslag_tekst", align = "justify"), HTML("<br>"),
+  #            htmlOutput("grondslag_grafieken", align = "justify"),
+  #            plotlyOutput("plot_grondslag")
+  #          )
+  
+  
+  
+  output$plot_micro_select_variant_1_choices = renderUI({
+    selectInput("plot_micro_select_variant_1", label = NULL, choices = variant_data_input()$variant)
+  })
   
       #showModal(modalDialog(
       #  title = "Welkom bij SandBox 3!",
@@ -1056,16 +1087,13 @@ server = function(input, output) {
     
     ############ TAB 2 ############ 
     
-    
     # DATA CASE NAMES
-    output$case_names = renderDataTable({
-      
-      inFile = input$upload_data
-      if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
+    output$micro_1_select_case = renderUI({
+      if (is.null(input$upload_data)){data = case_data()} else {data = upload_data$data}
       data = subset(data, jaar == 2026)
-      select(data, c("omschrijving")) 
+      selectInput("micro_1_select_case_selection", label = NULL, choices = data$omschrijving)
+    })
     
-    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 19, scrollX = T))
     
     # TEKSTUELE OMSCHRIJVING GRONDSLAG
     
@@ -1079,13 +1107,14 @@ server = function(input, output) {
       # als wel data beschikbaar
       } else {
         
-        inFile = input$upload_data
-        selection =  input$case_names_rows_selected
-        selection = selection[length(selection)]
-        if (is.null(selection)){selection =1}
-        if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
-        df = subset(data, jaar == 2026)[selection,]
+        selection = input$micro_1_select_case_selection
+        
+        if (is.null(input$upload_data)){data = case_data()} else {data = upload_data$data}
+        
+        df = subset(data, jaar == 2026 & omschrijving == selection)
+        df_long = subset(data, omschrijving == selection)
         naam = df$omschrijving
+        
         
         # (a) Spaargeld
         if (df$spaargeld > 0){text = paste0(text, "<b>Spaargeld.</b> Op de peildatum van 2026 heeft ", naam, " <i>", number_to_money(df$spaargeld), "</i> spaargeld op zijn rekening. Belastingplichtige ontvangt <i>", percentify(df$spaargeld_rendperc), " rente</i>. De aanwas is daarmee gelijk aan <i>", number_to_money(bereken_aanwas(df$spaargeld, df$spaargeld_rendperc)) , "</i>. ")} 
@@ -1112,31 +1141,12 @@ server = function(input, output) {
         else if (verschil < 0){text = paste0(text, "<b>Dat is ", number_to_money(abs(verschil)), " minder dan de grondslag die belastingplichtige vóór toerekening van het heffingvrij vermogen  zou hebben onder de overbruggingswetgeving.</b> <br>")}
         else {text = paste0(text, "<b> Dat is exact evenveel als de grondslag die belastingplichtige vóór toerekening van het heffingvrij vermogen zou hebben onder de overbruggingswetgeving.</b> <br>")}
         
-      }})
-    
-    # TEKSTUELE TOELICHTING GRONDSLAG 2026-2045
-    output$grondslag_grafieken = renderText({ 
-      
-      inFile = input$upload_data
-      if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
-      
-      if (nrow(data) > 0){
-      selection =  input$case_names_rows_selected
-      selection = selection[length(selection)]
-      if (is.null(selection)){selection =1}
-      
-      id_no = subset(data, jaar == 2026)[selection,]$omschrijving[1]
-      df = subset(data, omschrijving == id_no)
-      
-      naam = id_no
-      
-      df_long = subset(data, omschrijving == id_no)
-      aanwas_min = min(df_long$aanwas)
-      aanwas_max = max(df_long$aanwas)
-      jaar_min = subset(df_long, aanwas == aanwas_min)$jaar[1]
-      jaar_max = subset(df_long, aanwas == aanwas_max)$jaar[1]
-      
-      text = paste0("De grondslag van ", naam, " verschilt over de jaren heen.
+        # text 
+        aanwas_min = min(df_long$aanwas)
+        aanwas_max = max(df_long$aanwas)
+        jaar_min = subset(df_long, aanwas == aanwas_min)$jaar[1]
+        jaar_max = subset(df_long, aanwas == aanwas_max)$jaar[1]
+        text_2 = paste0("De grondslag van ", naam, " verschilt over de jaren heen.
              U heeft enkel de data voor 2026 opgegeven. De aanwas voor resterende jaren wordt 
              op basis van gerandomiseerde rendementen doorgerekend naar de jaren 2027 tot 2045.
              Het resultaat hiervan kunt u grafisch inspecteren in de onderstaande grafiek. 
@@ -1146,13 +1156,42 @@ server = function(input, output) {
              wordt deze in mindering gebracht bij de positieve grondslag in een ander jaar.
              Welk jaar dat is en hoeveel ", naam, " mag verrekenen is afhankelijk van de parameters
              van het door u gekozen stelsel in het volgende luik.")
-      } else {
-        text = "Er is geen data beschikbaar. Voeg data toe met behulp van de tool"
-      }
-      
-      text
-      
-    })
+        
+        text = paste0(
+        '<html>
+        <style>
+        * {
+          box-sizing: border-box;
+        }
+        
+        .row2 {
+          display: flex;
+        }
+        
+        /* Create two equal columns that sits next to each other */
+        .column {
+          flex: 50%;
+          padding: 10px;
+        }
+        </style>
+        
+        <div class="row2">
+          <div class="column">
+            <h5>Aanwas 2026</h5>
+            <p>', text ,'</p>
+          </div>
+          <div class="column">
+            <h5>Aanwas 2026-2045</h5>
+            <p>', text_2 ,'</p>
+          </div>
+        </div>
+        
+        <html>'  
+        )
+        
+      }})
+    
+    
     
     # PLOT 
     output$plot_grondslag = renderPlotly({
@@ -1185,9 +1224,6 @@ server = function(input, output) {
       } else {}
       
     })
-    
-    
-    
     
     ############ 1.2. MICRO ANALYSES - STAP 2: Welke variant wilt u doorrekenen? ###########
     
@@ -1326,6 +1362,14 @@ server = function(input, output) {
       content = function(file) {write_xlsx(selected_data_variant(input$upload_data_variant), file)}
       
     )
+    
+    ############ TAB 2 ############ 
+    
+    # DATA CASE NAMES
+    output$micro_1_select_variant = renderUI({
+      if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
+      selectInput("micro_1_select_variat_selection", label = NULL, choices = data$variant)
+    })
     
     # PLOT VARIANT
     output$plot_variant = renderPlotly({
@@ -1736,6 +1780,26 @@ server = function(input, output) {
       out
       
     }, server = F, rownames = T, selection = 'none', options = list(scrollX = T))
+    
+    
+    #column(9, h5("Aanwas, grondslag en belasting per belastingplichtige"), plotlyOutput("plot_micro_overzicht")),
+    #column(3, h5("Grondslag ongelijkheid"), plotlyOutput("plot_micro_grondslag")),
+    #column(3, h5("Belasting ongelijkheid"), plotlyOutput("plot_micro_belasting")),
+    #column(3, h5("Overbelasting"), plotlyOutput("plot_micro_overbelasting"))
+    
+    output$plot_micro_overzicht = renderPlotly({
+      
+      dat = data.frame(
+                 id = c(rep(1,3), rep(2,3), rep(3,3)),
+                 aanwas = c(rep(1300, 3), rep(2900,3), rep(3000, 3)), 
+                 variant = rep(paste0("Variant ", 1:3), 3), 
+                 grondslag = c(1300*0.8, 1300*0.7, 1300*0.6, 2900*0.5, 2900*0.5, 2900*0.5, 3000*0.85, 3000*0.2, 3000*0.1),
+                 belasting = c(300, 400, 500, 400, 800, 1200, 400, 900, 2000))
+      
+      plot_ly(x = dat$variant, y = dat$grondslag, color = dat$id) %>%
+        add_trace(type = "scatter", mode = "markers")
+      
+    })
     
     
     ################################## 2. MACRO ANALYSES ##################################
