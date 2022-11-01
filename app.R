@@ -671,11 +671,16 @@ ui = fluidPage(
                    
                    tabPanel("Inspecteer microvoorbeeld",
                      HTML("<br>"),
-                     fluidRow(column(2, h5("Selecteer casus")), column(2, h5("Selecteer variant")))
-                     ),
+                     sidebarPanel(
+                     h5("Selecteer casus"), 
+                     helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), 
+                     uiOutput("micro_2_select_case"), 
+                     h5("Selecteer variant"), 
+                     helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), 
+                     uiOutput("micro_2_select_variant"), width = 3)),
                      # sidebarPanel(
                      # h5("Selecteer casus"), helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), dataTableOutput('select_case_micro'), 
-                     # h5("Selecteer variant"), helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), dataTableOutput('select_variant_micro'),
+                     # h5("Selecteer variant"), , dataTableOutput('select_variant_micro'),
                      #  width = 3),
                      # mainPanel(
                      # h5("Microvoorbeeld"), htmlOutput("micro_tekst", align = "justify"),
@@ -1087,7 +1092,6 @@ server = function(input, output) {
       selectInput("micro_1_select_case_selection", label = NULL, choices = data$omschrijving)
     })
     
-    
     # TEKSTUELE OMSCHRIJVING GRONDSLAG
     
     output$grondslag_tekst = renderText({ 
@@ -1358,7 +1362,7 @@ server = function(input, output) {
     
     ############ TAB 2 ############ 
     
-    # DATA CASE NAMES
+    # DATA VARIANT NAMES
     output$micro_1_select_variant = renderUI({
       if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
       selectInput("micro_1_select_variant_selection", label = NULL, choices = data$variant)
@@ -1679,24 +1683,20 @@ server = function(input, output) {
     
     ############ TAB 2 ###########
     
-    # SELECTEER CASUS
-    output$select_case_micro = renderDataTable({
-      
-      inFile = input$upload_data
-      if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
-      data = subset(data, jaar == 2026)
-      select(data, c("omschrijving")) 
-      
-    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 7, scrollX = T))
+    # SIDEBAR #
     
-    # SELECTEER VARIANT
-    output$select_variant_micro = renderDataTable({
-      
-      inFile = input$upload_data_variant
-      if (is.null(inFile)){data = variant_data_input()} else {data = upload_variant_data$data}
-      select(data, c("variant")) 
-      
-    }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 18, scrollX = T))
+    # DATA CASE NAMES
+    output$micro_2_select_case = renderUI({
+      if (is.null(input$upload_data)){data = case_data()} else {data = upload_data$data}
+      data = subset(data, jaar == 2026)
+      selectInput("micro_2_select_case_selection", label = NULL, choices = data$omschrijving)
+    })
+    
+    # DATA VARIANT NAMES
+    output$micro_2_select_variant = renderUI({
+      if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
+      selectInput("micro_2_select_variant_selection", label = NULL, choices = data$variant)
+    })
     
     # MICRO VOORBEELD TEKST 
     output$micro_tekst = renderText({ 
