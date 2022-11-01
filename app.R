@@ -671,22 +671,23 @@ ui = fluidPage(
                    
                    tabPanel("Inspecteer microvoorbeeld",
                      HTML("<br>"),
+                     div(style = "font-size: 10px", 
                      sidebarPanel(
-                     h5("Selecteer casus"), 
-                     helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), 
-                     uiOutput("micro_2_select_case"), 
-                     h5("Selecteer variant"), 
-                     helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), 
-                     uiOutput("micro_2_select_variant"), width = 3)),
-                     # sidebarPanel(
-                     # h5("Selecteer casus"), helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), dataTableOutput('select_case_micro'), 
-                     # h5("Selecteer variant"), , dataTableOutput('select_variant_micro'),
-                     #  width = 3),
-                     # mainPanel(
-                     # h5("Microvoorbeeld"), htmlOutput("micro_tekst", align = "justify"),
-                     # plotlyOutput("plot_micro"),
-                     #  sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%')
-                     #)),
+                       h5("Jaar"),
+                       helpText("Voor welke jaar wilt u een microvoorbeeld genereren?"), 
+                       selectInput("micro_3_select_year", label = NULL, choices = c("Alle jaren", 2026:2045)),
+                       h5("Selecteer casus"), 
+                       helpText("Voor welke casus wilt u een microvoorbeeld genereren?"), 
+                       uiOutput("micro_3_select_case"), 
+                       h5("Selecteer variant"), 
+                       helpText("Voor welke variant wilt u een microvoorbeeld genereren?"), 
+                       uiOutput("micro_3_select_variant"), width = 3)),
+                     
+                     mainPanel(
+                       h5("Microvoorbeeld"), htmlOutput("micro_tekst", align = "justify"),
+                       plotlyOutput("plot_micro")
+                     )),
+                   
                    tabPanel("Inspecteer micro-effecten", 
                      HTML("<br>"),
                      column(3, h5("Microeffecten per variant"), 
@@ -786,9 +787,8 @@ ui = fluidPage(
                                                 plotlyOutput("plot_variant_macro"),
                                                 sliderInput(inputId = "plot_variant_jaar_macro", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'),
                                          ))))))       
-                      
-                      
                       ),
+             
           tabPanel("Stap 2: Bekijk resultaten")
           ),
           # GENEREER RAPORT 
@@ -1582,7 +1582,6 @@ server = function(input, output) {
     
     ############ TAB 1 ###########
     
-    
     # OUTPUT TABEL
     output$variant_case_effects = renderDataTable({
       
@@ -1683,80 +1682,106 @@ server = function(input, output) {
     
     ############ TAB 2 ###########
     
-    # SIDEBAR #
+    ###### SIDEBAR ######
     
     # DATA CASE NAMES
-    output$micro_2_select_case = renderUI({
+    output$micro_3_select_case = renderUI({
       if (is.null(input$upload_data)){data = case_data()} else {data = upload_data$data}
       data = subset(data, jaar == 2026)
-      selectInput("micro_2_select_case_selection", label = NULL, choices = data$omschrijving)
+      selectInput("micro_3_select_case_selection", label = NULL, choices = data$omschrijving)
     })
     
     # DATA VARIANT NAMES
-    output$micro_2_select_variant = renderUI({
+    output$micro_3_select_variant = renderUI({
       if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
-      selectInput("micro_2_select_variant_selection", label = NULL, choices = data$variant)
+      selectInput("micro_3_select_variant_selection", label = NULL, choices = data$variant)
     })
+    
+    ###### MAIN PANEL ######
     
     # MICRO VOORBEELD TEKST 
     output$micro_tekst = renderText({ 
       
-      if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
-      if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
+      # variant data 
+      if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
+      variant = input$micro_3_select_variant_selection
+      variant_dat = subset(variant_dat, variant == variant)
       
-      if (nrow(variant_data) > 0 & nrow(case_data) > 0){
+      # case data
+      if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
+      omschrijving = input$micro_3_select_case_selection
+      case_dat = subset(case_dat, omschrijving == omschrijving)
+      
+      # data voor alle jaren 
+      if (input$micro_3_select_year == "Alle jaren"){
+      if (nrow(variant_dat) > 0 & nrow(case_dat) > 0){
         
         temp = list()
         # elke case
-        for (i in c(1:length(unique(case_data$omschrijving)))){
+        for (i in c(1:length(unique(case_dat$omschrijving)))){
           # elke variant
-          for (j in c(1:nrow(variant_data))){
-            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
+          for (j in c(1:nrow(variant_dat))){
+            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_dat[j,], dat_case = subset(case_dat, omschrijving == unique(case_dat$omschrijving)[i]))
           }}
         
         temp = do.call(rbind, temp) 
       } else {
         temp = variant_case_effects %>% filter(., row_number() %in% -1)
       }
+        temp = subset(temp, case_name == omschrijving & variant_name == variant)
+        
+        tijd = "gedurende de periode van 2026 tot 2025"
+        tijd_2 = "over deze twintig jaar heen"
+        tijd_3 = "In twintig jaar"
+        grondslag_na_hvi = sum(subset(case_dat, aanwas > variant_dat$hvi)$aanwas, na.rm = T)
+        verlies = temp$verlies
+        verrekend_verlies = temp$verrekend_verlies
+        
+        #naam = temp$case_name
+        
+        
+        #grondslag_perc = temp$grondslag_perc
+        #grondslag = temp$grondslag
+        #belasting = temp$belasting
+        #belasting_perc = temp$belasting_perc
       
-      # variant data 
-      if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
-      variant = variant_dat[input$select_variant_micro_rows_selected, "variant"]
-      variant = as.character(variant[1])
-      variant_dat = subset(variant_dat, variant == variant)
+      # data voor een enkel jaar 
+      } else {
+        
+        temp = subset(verreken_verlies(data = case_dat, hvi = variant_dat$hvi, cf = variant_dat$cf, cb = variant_dat$cb), jaar == as.numeric(input$micro_3_select_year)) 
+        tijd = paste0("in ", input$micro_3_select_year)
+        tijd_2 = "in dit jaar"
+        tijd_3 = "In deze jaren"
+        grondslag_na_hvi = temp$aanwas - variant_dat$hvi; if(grondslag_na_hvi<0){grondslag_na_hvi = 0}
+        verlies = sum(subset(case_dat, aanwas < 0 & jaar > as.numeric(input$micro_3_select_year) - variant_dat$cf & jaar > as.numeric(input$micro_3_select_year) + variant_dat$cb)$aanwas, na.rm = T)
+      }
       
-      # case data
-      if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
-      omschrijving = subset(case_dat, jaar == 2026)
-      omschrijving = omschrijving[input$select_case_micro_rows_selected, "omschrijving"]
-      omschrijving = as.character(omschrijving[1]) 
-      case_dat = subset(case_dat, omschrijving == omschrijving)
-      
-      temp = subset(temp, case_name == omschrijving & variant_name == variant)
+      naam = input$micro_3_select_case_selection
       
       # heffing vrij inkomen
-      hvi = temp$hvi
-      grondslag_na_hvi = sum(subset(case_dat, aanwas > hvi)$aanwas, na.rm = T)
+      hvi = variant_dat$hvi
       
       # verliesverrekening
-      cf = temp$cf; cb = temp$cb; vv_drempel = temp$verlies_drempel
+      cf = variant_dat$cf; cb = variant_dat$cb; vv_drempel = variant_dat$verlies_drempel
       
       # schijf grenzen en tarieven 
-      s2 = temp$schijf_2; s3 = temp$schijf_3
-      t1 = temp$tarief_1; t2 = temp$tarief_2; t3 = temp$tarief_3
+      s2 = variant_dat$schijf_2; s3 = variant_dat$schijf_3
+      t1 = variant_dat$tarief_1; t2 = variant_dat$tarief_2; t3 = variant_dat$tarief_3
       schijf_aantal = 1; if (!is.na(t3) & !is.na(s3)){schijf_aantal = 3};  if (is.na(t3) & is.na(s3) & !is.na(t2) & !is.na(s2)){schijf_aantal = 2} 
       
-      text = paste0("<b>Aanwas.</b> ", temp$case_name, " heeft gedurende de periode van 2026 tot 2025 in totaal ", number_to_money(temp$aanwas), " aanwas genoten.
-                    <b>Heffingvrij inkomen.</b> Ter berekening van de belasting grondslag is in de eerste plaats elk jaar het heffingvrij inkomen van ", number_to_money(hvi), "
-                    in mindering gebracht bij de aanwas. Na verrekening van het hvi staat de totale grondslag van belastingplichtige over deze
-                    twintig jaar heen gelijk aan ", number_to_money(grondslag_na_hvi), ". <b>Verliesverrekening.</b> Belastingplichtige mocht gedurende deze jaren
-                    verliezen groter dan ", number_to_money(vv_drempel), " verrekenen van de ", cf, " jaar voor het belastingjaar en de ", cb, " jaar na het belastingjaar. 
-                    In twintig jaar heeft belastingplichtige ", number_to_money(temp$verlies), " verlies geleden, waarvan hij ", number_to_money(temp$verrekend_verlies), " (", 
-                    percentify(temp$verrekend_verlies_perc), ") heeft kunnen verrekenen. <b>Grondslag.</b> De grondslag na verliesverrekening is daarmee gelijk aan ", 
-                    number_to_money(temp$grondslag), ". Dit is ", percentify(temp$grondslag_perc), " van de totale aanwas.<br><br>")
+      text = paste0("<b>Aanwas.</b> ", naam, " heeft ", tijd, " in totaal ", number_to_money(temp$aanwas), " aanwas genoten.
+                    <b>Heffingvrij inkomen.</b> Ter berekening van de belasting grondslag is in de eerste plaats het heffingvrij inkomen van ", number_to_money(variant_dat$hvi), "
+                    in mindering gebracht bij de aanwas. Na verrekening van het hvi staat de grondslag van belastingplichtige ", tijd_2, " gelijk aan ", number_to_money(grondslag_na_hvi), ". 
+                    <b>Verliesverrekening.</b> Belastingplichtige mag ", tijd_2, " verliezen groter dan ", number_to_money(variant_dat$verlies_drempel), 
+                    " verrekenen van de ", variant_dat$cf, " jaar voor het belastingjaar en de ", variant_dat$cb, " jaar na het belastingjaar (teruggaand tot 2026). 
+                    ", tijd_3, " heeft belastingplichtige ", number_to_money(verlies), " verlies geleden, waarvan hij ", number_to_money(0), " (", 
+                    percentify(0), ") heeft kunnen verrekenen. <b>Grondslag.</b> De grondslag na verliesverrekening is daarmee gelijk aan ", 
+                    number_to_money(0), ". Dit is ", percentify(0), " van de totale aanwas.<br><br>")
       
-      text = paste0(text, "Belastingplichtige heeft gedurende deze twintig jaar een uniform tarief betaalt over zijn grondslag van ", percentify(t1), ". ")
-      text = paste0(text, "In totaal heeft belastingplichtige ", number_to_money(temp$belasting), " betaalt. Dit is ", percentify(temp$belasting_perc), " van zijn aanwas.")
+      text = paste0(text, "Belastingplichtige heeft gedurende deze twintig jaar een uniform tarief betaalt over zijn grondslag van ", percentify(0), ". ")
+      text = paste0(text, "In totaal heeft belastingplichtige ", number_to_money(0), " betaalt. Dit is ", percentify(0), " van zijn aanwas.")
+      
+      
       
     })
     
