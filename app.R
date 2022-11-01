@@ -686,7 +686,7 @@ ui = fluidPage(
                        width = 3)),
                      
                      mainPanel(
-                       column(6, h5("Microvoorbeeld"), dataTableOutput('tab_micro'), htmlOutput("micro_tekst", align = "justify")),
+                       column(6, h5("Microvoorbeeld"), dataTableOutput('tab_micro'), HTML("<br><br>"), htmlOutput("micro_tekst", align = "justify")),
                        column(6, h5("Visualisatie microvoorbeeld"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de aanwas (belastbaar en niet belastbaar) en verlies (verrekenbaar en niet verrekenbaar) van de belastingplichtige per belastingjaar."), plotlyOutput("plot_micro"),
                        sliderInput(inputId = "plot_micro_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'))
                      )),
@@ -1706,14 +1706,15 @@ server = function(input, output) {
       case_dat = subset(case_dat, omschrijving == omschrijving)
       case_dat = verreken_verlies(case_dat, hvi = variant_dat$hvi, cf = variant_dat$cf, cb = variant_dat$cb, drempel = variant_dat$verlies_drempel)
       
+      if (input$micro_3_select_year == "Alle jaren"){case_dat = case_dat} else {case_dat = subset(case_dat, jaar == as.numeric(input$micro_3_select_year))}
+      
       rbind(
         c("Aanwas:", number_to_money(sum(subset(case_dat, aanwas > 0)$aanwas, na.rm = T))),
         c("- Heffingvrij Inkomen:", number_to_money(-nrow(subset(case_dat, aanwas > variant_dat$hvi))*variant_dat$hvi)),
-        c(paste0("- Verrekenbaar verlies (verlies boven €", variant_dat$verlies_drempel,"):"), 
-          0),
+        c("- Verrekenbaar verlies:", number_to_money(-sum(c(case_dat$cb, case_dat$cf)))),
         c("= Grondslag:", number_to_money(sum(case_dat$grondslag, na.rm = T)))) %>%
         data.frame() %>%
-        setNames(c(NULL, "Bedrag"))
+        setNames(c(" ", "Bedrag"))
       
       
     }, options = list(dom = 't'), rownames = F)
