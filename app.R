@@ -1960,10 +1960,7 @@ server = function(input, output) {
       selectInput("plot_micro_select_variant_1", label = NULL, choices = variant_data_input()$variant)
     })
     
-    output$plot_micro_select_variant_2_choices = renderUI({
-      selectInput("plot_micro_select_variant_2", label = NULL, choices = variant_data_input()$variant)
-    })
-    
+   
     output$plot_micro_variant_1 = renderPlotly({
       
       # variant data 
@@ -1989,49 +1986,101 @@ server = function(input, output) {
         temp = variant_case_effects %>% filter(., row_number() %in% -1)
       }
       
+      temp = subset(temp, variant_name == variant)
+      
       temp$aanwas_plot = 100 - temp$grondslag_perc
       temp$belasting_plot = temp$belasting_perc
       temp$grondslag_plot = temp$grondslag_perc-temp$belasting_perc
       
       
       temp = data.frame(
-        y = rep(temp$case_name, 3),
+        y_1 = rep(as.numeric(as.factor(temp$case_name)), 3),
+        y_2 = c(temp$case_name, rep("", nrow(temp)*2)),
         x = c(temp$belasting_plot, temp$grondslag_plot, temp$aanwas_plot),
-        z = c(rep("... waarvan belasting", nrow(temp)), rep("... waarvan grondslag", nrow(temp)), rep("aanwas ...", nrow(temp))),
-        color = c(rep('#FF9673', nrow(temp)), rep('#CC1480', nrow(temp)), rep('#D3D3D3', nrow(temp)))
+        z = c(rep("... waarvan belasting", nrow(temp)), rep("... waarvan grondslag ...", nrow(temp)), rep("aanwas ...", nrow(temp))),
+        color = c(rep('#9BD5FB', nrow(temp)), rep('#41A7EA', nrow(temp)), rep('#EEEEEE', nrow(temp)))
       )
       
-      #factor(temp$z, levels = c("aanwas",  "waarvan grondslag", "waarvan belasting")ordered = T)
+      h = (85*length(unique(temp$y_1))) + 80
       
       fig = plot_ly(
-        x = temp$x, y = temp$y, color = temp$z, 
-        type = 'bar', orientation = 'h', height = 150*length(unique(temp$y)), width = 500,
-        marker = list(color = temp$color)) %>%
-        layout(barmode = 'stack', legend = list(orientation = 'h'), autosize=F)
+        x = temp$x, y = temp$y_1, color = temp$z, 
+        type = 'bar', orientation = 'h', height = h, width = 500,
+        marker = list(color = temp$color), hoverinfo = 'none',
+        ) %>%
+        add_text(x=1, y = temp$y_1 + 0.5, text = paste0("<b>", temp$y_2, "</b>") ,textposition="right", color = I("black"), showlegend = F) %>%
+        layout(barmode = 'stack', legend = list(orientation = 'h'), autosize=F, 
+               xaxis = list(zerolinecolor = '#ffff', zerolinewidth = 2, gridcolor = 'ffff', showticklabels=FALSE, showticklabels = F), 
+               yaxis = list(zerolinecolor = '#ffff', zerolinewidth = 2, gridcolor = 'ffff', showticklabels=FALSE, showticklabels = F)) 
       
       fig
       
-    })
-    
-    output$plot_micro_overzicht = renderPlotly({
-      
-      dat = data.frame(
-                 id = c(rep(1,3), rep(2,3), rep(3,3)),
-                 aanwas = c(rep(1300, 3), rep(2900,3), rep(3000, 3)), 
-                 variant = rep(paste0("Variant ", 1:3), 3), 
-                 grondslag = c(1300*0.8, 1300*0.7, 1300*0.6, 2900*0.5, 2900*0.5, 2900*0.5, 3000*0.85, 3000*0.2, 3000*0.1),
-                 belasting = c(300, 400, 500, 400, 800, 1200, 400, 900, 2000))
-      
-      plot_ly(x = dat$variant, y = dat$grondslag, color = dat$id) %>%
-        add_trace(type = "scatter", mode = "markers")
       
     })
+
     
-#    uiOutput("plot_micro_select_variant_1_choices"),
-#    plotlyOutput("plot_micro_variant_1")),
-#column(4, h5("Selecteer andere variant"), 
-#       uiOutput("plot_micro_select_variant_2_choices"),
-#       plotlyOutput("plot_micro_variant_2")),
+    output$plot_micro_select_variant_2_choices = renderUI({
+      selectInput("plot_micro_select_variant_2", label = NULL, choices = variant_data_input()$variant)
+    })
+    
+        
+    output$plot_micro_variant_2 = renderPlotly({
+      
+      # variant data 
+      if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
+      variant = input$plot_micro_select_variant_2
+      variant_dat = subset(variant_dat, variant == variant)
+      
+      # case data
+      if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
+      
+      if (nrow(variant_dat) > 0 & nrow(case_dat) > 0){
+        
+        temp = list()
+        # elke case
+        for (i in c(1:length(unique(case_dat$omschrijving)))){
+          # elke variant
+          for (j in c(1:nrow(variant_dat))){
+            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_dat[j,], dat_case = subset(case_dat, omschrijving == unique(case_dat$omschrijving)[i]))
+          }}
+        
+        temp = do.call(rbind, temp) 
+      } else {
+        temp = variant_case_effects %>% filter(., row_number() %in% -1)
+      }
+      
+      temp = subset(temp, variant_name == variant)
+      temp$belasting_perc[temp$belasting_perc>100] = 100
+      temp$grondslag_perc[temp$grondslag_perc>100] = 100
+      
+      temp$aanwas_plot = 100 - temp$grondslag_perc
+      temp$belasting_plot = temp$belasting_perc
+      temp$grondslag_plot = temp$grondslag_perc-temp$belasting_perc
+      
+      temp = data.frame(
+        y_1 = rep(as.numeric(as.factor(temp$case_name)), 3),
+        y_2 = c(temp$case_name, rep("", nrow(temp)*2)),
+        x = c(temp$belasting_plot, temp$grondslag_plot, temp$aanwas_plot),
+        z = c(rep("... waarvan belasting", nrow(temp)), rep("... waarvan grondslag ...", nrow(temp)), rep("aanwas ...", nrow(temp))),
+        color = c(rep('#9BD5FB', nrow(temp)), rep('#41A7EA', nrow(temp)), rep('#EEEEEE', nrow(temp)))
+      )
+      
+      h = (85*length(unique(temp$y_1))) + 80
+      
+      fig = plot_ly(
+        x = temp$x, y = temp$y_1, color = temp$z, 
+        type = 'bar', orientation = 'h', height = h, width = 500,
+        marker = list(color = temp$color), hoverinfo = 'none',
+      ) %>%
+        add_text(x=1, y = temp$y_1 + 0.5, text = paste0("<b>", temp$y_2, "</b>") ,textposition="right", color = I("black"), showlegend = F) %>%
+        layout(barmode = 'stack', legend = list(orientation = 'h'), autosize=F, 
+               xaxis = list(zerolinecolor = '#ffff', zerolinewidth = 2, gridcolor = 'ffff', showticklabels=FALSE, showticklabels = F), 
+               yaxis = list(zerolinecolor = '#ffff', zerolinewidth = 2, gridcolor = 'ffff', showticklabels=FALSE, showticklabels = F)) 
+      
+      fig
+      
+      
+    })
     
     
     ################################## 2. MACRO ANALYSES ##################################
