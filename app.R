@@ -708,7 +708,9 @@ ui = fluidPage(
                             column(4, h5("Selecteer variant"), 
                                    uiOutput("plot_micro_select_variant_1_choices"),
                                    plotlyOutput("plot_micro_variant_1")),
-                            column(4, h5("Selecteer andere variant"), plotlyOutput("plot_micro_comparison_2")),
+                            column(4, h5("Selecteer andere variant"), 
+                                   uiOutput("plot_micro_select_variant_2_choices"),
+                                   plotlyOutput("plot_micro_variant_2")),
                             
                      ))) 
             ),
@@ -817,9 +819,7 @@ server = function(input, output) {
   
   
   
-  output$plot_micro_select_variant_1_choices = renderUI({
-    selectInput("plot_micro_select_variant_1", label = NULL, choices = variant_data_input()$variant)
-  })
+  
   
       #showModal(modalDialog(
       #  title = "Welkom bij SandBox 3!",
@@ -1710,7 +1710,7 @@ server = function(input, output) {
       
       rbind(
         c("Aanwas:", number_to_money(sum(subset(case_dat, aanwas > 0)$aanwas, na.rm = T))),
-        c("- Heffingvrij Inkomen:", number_to_money(-nrow(subset(case_dat, aanwas > variant_dat$hvi))*variant_dat$hvi)),
+        c("- Heffingvrij inkomen:", number_to_money(-nrow(subset(case_dat, aanwas > variant_dat$hvi))*variant_dat$hvi)),
         c("- Verrekenbaar verlies:", number_to_money(-sum(c(case_dat$cb, case_dat$cf)))),
         c("= Grondslag:", number_to_money(sum(case_dat$grondslag, na.rm = T)))) %>%
         data.frame() %>%
@@ -1734,37 +1734,37 @@ server = function(input, output) {
       
       # data voor alle jaren 
       if (input$micro_3_select_year == "Alle jaren"){
-      if (nrow(variant_dat) > 0 & nrow(case_dat) > 0){
-        
-        temp = list()
-        # elke case
-        for (i in c(1:length(unique(case_dat$omschrijving)))){
-          # elke variant
-          for (j in c(1:nrow(variant_dat))){
-            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_dat[j,], dat_case = subset(case_dat, omschrijving == unique(case_dat$omschrijving)[i]))
-          }}
-        
-        temp = do.call(rbind, temp) 
-      } else {
-        temp = variant_case_effects %>% filter(., row_number() %in% -1)
-      }
-        temp = subset(temp, case_name == omschrijving & variant_name == variant)
-        
-        tijd = "gedurende de periode van 2026 tot 2025"
-        tijd_2 = "over deze twintig jaar heen"
-        tijd_3 = "In twintig jaar"
-        tijd_4 = "elk jaar"
-        
-        aanwas = temp$aanwas
-        grondslag_na_hvi = sum(subset(case_dat, aanwas > variant_dat$hvi)$aanwas, na.rm = T)
-        verlies = temp$verlies
-        verrekend_verlies = temp$verrekend_verlies
-        verrekend_verlies_perc = temp$verrekend_verlies_perc
-        grondslag = temp$grondslag
-        belasting = temp$belasting
-        
-        if(aanwas > 0){grondslag_perc = grondslag / aanwas} else {grondslag_perc = 0} 
-        if(aanwas > 0){belasting_perc = belasting / aanwas} else {belasting_perc = 0} 
+        if (nrow(variant_dat) > 0 & nrow(case_dat) > 0){
+          
+          temp = list()
+          # elke case
+          for (i in c(1:length(unique(case_dat$omschrijving)))){
+            # elke variant
+            for (j in c(1:nrow(variant_dat))){
+              temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_dat[j,], dat_case = subset(case_dat, omschrijving == unique(case_dat$omschrijving)[i]))
+            }}
+          
+          temp = do.call(rbind, temp) 
+        } else {
+          temp = variant_case_effects %>% filter(., row_number() %in% -1)
+        }
+          temp = subset(temp, case_name == omschrijving & variant_name == variant)
+          
+          tijd = "gedurende de periode van 2026 tot 2025"
+          tijd_2 = "over deze twintig jaar heen"
+          tijd_3 = "In twintig jaar"
+          tijd_4 = "elk jaar"
+          
+          aanwas = temp$aanwas
+          grondslag_na_hvi = sum(subset(case_dat, aanwas > variant_dat$hvi)$aanwas, na.rm = T)
+          verlies = temp$verlies
+          verrekend_verlies = temp$verrekend_verlies
+          verrekend_verlies_perc = temp$verrekend_verlies_perc
+          grondslag = temp$grondslag
+          belasting = temp$belasting
+          
+          if(aanwas > 0){grondslag_perc = grondslag / aanwas} else {grondslag_perc = 0} 
+          if(aanwas > 0){belasting_perc = belasting / aanwas} else {belasting_perc = 0} 
         
       
       # data voor een enkel jaar 
@@ -1956,7 +1956,62 @@ server = function(input, output) {
       
     }, server = F, rownames = T, selection = 'none', options = list(scrollX = T))
     
+    output$plot_micro_select_variant_1_choices = renderUI({
+      selectInput("plot_micro_select_variant_1", label = NULL, choices = variant_data_input()$variant)
+    })
     
+    output$plot_micro_select_variant_2_choices = renderUI({
+      selectInput("plot_micro_select_variant_2", label = NULL, choices = variant_data_input()$variant)
+    })
+    
+    output$plot_micro_variant_1 = renderPlotly({
+      
+      # variant data 
+      if (is.null(input$upload_data_variant)){variant_dat = variant_data_input()} else {variant_dat = upload_variant_data$data}
+      variant = input$plot_micro_select_variant_1
+      variant_dat = subset(variant_dat, variant == variant)
+      
+      # case data
+      if (is.null(input$upload_data)){case_dat = case_data()} else {case_dat = upload_data$data}
+      
+      if (nrow(variant_dat) > 0 & nrow(case_dat) > 0){
+        
+        temp = list()
+        # elke case
+        for (i in c(1:length(unique(case_dat$omschrijving)))){
+          # elke variant
+          for (j in c(1:nrow(variant_dat))){
+            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_dat[j,], dat_case = subset(case_dat, omschrijving == unique(case_dat$omschrijving)[i]))
+          }}
+        
+        temp = do.call(rbind, temp) 
+      } else {
+        temp = variant_case_effects %>% filter(., row_number() %in% -1)
+      }
+      
+      temp$aanwas_plot = 100 - temp$grondslag_perc
+      temp$belasting_plot = temp$belasting_perc
+      temp$grondslag_plot = temp$grondslag_perc-temp$belasting_perc
+      
+      
+      temp = data.frame(
+        y = rep(temp$case_name, 3),
+        x = c(temp$belasting_plot, temp$grondslag_plot, temp$aanwas_plot),
+        z = c(rep("... waarvan belasting", nrow(temp)), rep("... waarvan grondslag", nrow(temp)), rep("aanwas ...", nrow(temp))),
+        color = c(rep('#FF9673', nrow(temp)), rep('#CC1480', nrow(temp)), rep('#D3D3D3', nrow(temp)))
+      )
+      
+      #factor(temp$z, levels = c("aanwas",  "waarvan grondslag", "waarvan belasting")ordered = T)
+      
+      fig = plot_ly(
+        x = temp$x, y = temp$y, color = temp$z, 
+        type = 'bar', orientation = 'h', height = 150*length(unique(temp$y)), width = 500,
+        marker = list(color = temp$color)) %>%
+        layout(barmode = 'stack', legend = list(orientation = 'h'), autosize=F)
+      
+      fig
+      
+    })
     
     output$plot_micro_overzicht = renderPlotly({
       
@@ -1971,6 +2026,12 @@ server = function(input, output) {
         add_trace(type = "scatter", mode = "markers")
       
     })
+    
+#    uiOutput("plot_micro_select_variant_1_choices"),
+#    plotlyOutput("plot_micro_variant_1")),
+#column(4, h5("Selecteer andere variant"), 
+#       uiOutput("plot_micro_select_variant_2_choices"),
+#       plotlyOutput("plot_micro_variant_2")),
     
     
     ################################## 2. MACRO ANALYSES ##################################
