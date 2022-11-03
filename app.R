@@ -506,19 +506,19 @@ ui = fluidPage(
                        
                 # Spaargeld
                 h5("Spaargeld (+)"), helpText("Hoeveel spaargeld heeft hij en wat is de rente op spaargeld?"),
-                fluidRow(column(6, numericInput(inputId = "spaargeld", label = "Vermogen (€)", value = round(spaargeld), min = 0, max = Inf)), column(6, numericInput(inputId = "spaargeld_rendperc", label = "Aanwas (%)", value = round(spaargeld_rendperc), min = 0, max = Inf))),
+                fluidRow(column(6, numericInput(inputId = "spaargeld", label = "Vermogen (€)", value = round(spaargeld), min = 0, max = Inf)), column(6, numericInput(inputId = "spaargeld_rendperc", label = "Rendement (%)", value = round(spaargeld_rendperc), min = 0, max = Inf))),
                        
                 # Financiele producten 
                 h5("Financiële producten (+)"), helpText("Wat is de waarde van zijn financiële producten, zoals verhandelbare aandelen, obligaties, of cryptovaluta en wat is het rendement op deze producten?"),
-                fluidRow(column(6, numericInput(inputId = "finproduct", label = "Vermogen (€)", value = round(finproduct), min = 0, max = Inf)), column(6, numericInput(inputId = "finproduct_rendperc", label = "Aanwas (%)", value = round(finproduct_rendperc), min = 0, max = Inf))),
+                fluidRow(column(6, numericInput(inputId = "finproduct", label = "Vermogen (€)", value = round(finproduct), min = 0, max = Inf)), column(6, numericInput(inputId = "finproduct_rendperc", label = "Rendement (%)", value = round(finproduct_rendperc), min = 0, max = Inf))),
                        
                 # Onroerend goed
                 h5("Onroerend goed (+)"), helpText("Wat is de waarde van zijn onroerende goederen, zoals een tweede huis en wat is het rendement op dit bezit?"),
-                fluidRow(column(6, numericInput(inputId = "restbezit", label = "Vermogen (€)", value = round(restbezit), min = 0, max = Inf)), column(6, numericInput(inputId = "restbezit_rendperc", label = "Aanwas (%)", value = round(restbezit_rendperc), min = 0, max = Inf))),
+                fluidRow(column(6, numericInput(inputId = "restbezit", label = "Vermogen (€)", value = round(restbezit), min = 0, max = Inf)), column(6, numericInput(inputId = "restbezit_rendperc", label = "Rendement (%)", value = round(restbezit_rendperc), min = 0, max = Inf))),
                        
                 # Schulden
                 h5("Schulden (-)"), helpText("Hoeveel schuld heeft belastingplichtige en wat is de rente op deze schuld?"),
-                       fluidRow(column(6, numericInput(inputId = "schuld", label = "Vermogen (€)", value = round(schuld), min = 0, max = Inf)), column(6, numericInput(inputId = "schuld_rendperc", label = "Aanwas (%)", value = round(schuld_rendperc), min = 0, max = Inf))),
+                       fluidRow(column(6, numericInput(inputId = "schuld", label = "Vermogen (€)", value = round(schuld), min = 0, max = Inf)), column(6, numericInput(inputId = "schuld_rendperc", label = "Rendement (%)", value = round(schuld_rendperc), min = 0, max = Inf))),
                        
                 # Crisis
                 h5("Crisis"), helpText("Heeft belastingplichtige een financiële crisis meegemaakt? Zo ja, dan simuleert de tool een vijfjarige crisis vanaf 2035."), 
@@ -553,7 +553,7 @@ ui = fluidPage(
                           fluidRow(
                           column(3, h5("download template"), downloadButton("download_template", label = "download template")),
                           column(9, h5("data opladen (.xlsx)"), fileInput("upload_data", label = NULL, multiple = F, accept = ".xlsx", width = '100%', placeholder = NA))),
-                          dataTableOutput('grondslag_data')), 
+                          dataTableOutput('aanwas_data')), 
                           column(2, 
                                  actionButton(inputId = "reset_data", label = "reset dataset", width = '100%'), h4(),
                                  actionButton(inputId = "delete_case", label = "verwijder casus", width = '100%'), h4(),
@@ -564,7 +564,8 @@ ui = fluidPage(
                             fluidRow(
                               h5("Welke casus wilt u bekijken?"), uiOutput("micro_1_select_case"),
                               htmlOutput("grondslag_tekst", align = "justify"), 
-                              column(6, h5("Plot grondslag 2026-2045"), plotlyOutput("plot_grondslag"))
+                              column(6, h5("Plot aanwas 2026"), plotlyOutput("plot_aanwas_2026")),
+                              column(6, h5("Plot aanwas 2026-2045"), plotlyOutput("plot_aanwas"))
                             )))
                      ))),
             
@@ -814,7 +815,7 @@ server = function(input, output) {
   #            h5("Grondslag berekening 2026"),
   #            htmlOutput("grondslag_tekst", align = "justify"), HTML("<br>"),
   #            htmlOutput("grondslag_grafieken", align = "justify"),
-  #            plotlyOutput("plot_grondslag")
+  #            plotlyOutput("plot_aanwas")
   #          )
   
   
@@ -838,6 +839,8 @@ server = function(input, output) {
   
   # KNOP CASUS TOEVOEGEN
   observeEvent(input$add_case, {
+    
+    set.seed(1993)
     
     # Easter Egg
     easteregg = data.frame(
@@ -943,7 +946,7 @@ server = function(input, output) {
     } else {omschrijving_new = isolate(input$omschrijving)}
     
     risico = sample(0:10, 1, replace = T)
-    #sd = sd
+    sd = sd*2
     sd_rend = risico*sd
     
     
@@ -999,11 +1002,14 @@ server = function(input, output) {
     
     gen_upload_data = function(){
       
-      data = readxl::read_xlsx(input$upload_data$datapath) %>%
-        setNames(c("omschrijving", "spaargeld", "spaargeld_rendperc", "finproduct", "finproduct_rendperc", "restbezit", "restbezit_rendperc", "schuld", "schuld_rendperc", "risico", "crisis"))
       
-      datalist = list() 
-      
+      if (nrow(readxl::read_xlsx(input$upload_data$datapath)) > 0){
+        
+        data = readxl::read_xlsx(input$upload_data$datapath) %>%
+          setNames(c("omschrijving", "spaargeld", "spaargeld_rendperc", "finproduct", "finproduct_rendperc", "restbezit", "restbezit_rendperc", "schuld", "schuld_rendperc", "risico", "crisis"))
+        
+        datalist = list() 
+        
       # voor iedere belastingplichtige
       for (i in c(1:length(unique(data$omschrijving)))){
         
@@ -1019,21 +1025,36 @@ server = function(input, output) {
           restbezit_rendperc = row$restbezit_rendperc, schuld_rendperc = row$schuld_rendperc), 
           sd_rend = sd_rend, crisis = row$crisis)  
       }
-      upload_data$data = do.call(rbind, datalist) 
+        
+        upload_data$data = do.call(rbind, datalist) 
+        
+      } else {
+        
+        upload_data$data = gen_history(
+          data.frame(id = 1, omschrijving = "1", 
+          risico = 1, jaar = 2026, spaargeld = 1, 
+          finproduct = 1, restbezit = 1, schuld = 1, 
+          spaargeld_rendperc = 1, finproduct_rendperc = 1, 
+          restbezit_rendperc = 1, schuld_rendperc = 1), 
+          sd_rend = sd_rend, crisis = "nee") %>%
+          filter(row_number() %in% -1)
+        
+      }
+      
     }
-    
-    observeEvent(input$upload_data, {upload_data$data = gen_upload_data()})
     
     gen_empty_data = function(){
       data = gen_upload_data() %>% filter(row_number() %in% -1)
       return(data)
     }
     
+    observeEvent(input$upload_data, {upload_data$data = gen_upload_data()})
+    
     # VOORGEPROGRAMEERDE DATA 
     case_data = reactiveVal(case_data)
     
     # OUTPUT TABEL
-    output$grondslag_data = renderDataTable({
+    output$aanwas_data = renderDataTable({
       
       # UPLOAD DATA 
       inFile = input$upload_data
@@ -1041,7 +1062,7 @@ server = function(input, output) {
       if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
       
       select(data, c("omschrijving",  "risico", "jaar", "vermogen", "aanwas", "aanwas_forfait", "spaargeld", "finproduct", "restbezit", "schuld", "spaargeld_rendperc", "finproduct_rendperc", "restbezit_rendperc", "schuld_rendperc")) %>% 
-        setNames(c("omschrijving", "risico", "jaar", "vermogen", "aanwas", "aanwas overbrugging", "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", "aanwas overig bezit (%)", "aanwas schuld (%)")) 
+        setNames(c("omschrijving", "risico", "jaar", "vermogen", "aanwas", "aanwas overbrugging", "spaargeld", "financiële producten", "overig bezit", "schuld", "rendement spaargeld (%)", "rendement financiële producten (%)", "rendement overig bezit (%)", "rendement schuld (%)")) 
       
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 12, scrollX = T))
     
@@ -1056,7 +1077,7 @@ server = function(input, output) {
     # KNOP VERWIJDER CASUS 
     observeEvent(input$delete_case, {
       
-      remove = input$grondslag_data_rows_selected
+      remove = input$aanwas_data_rows_selected
       
       if (is.null(input$upload_data)){    
         remove = case_data()[remove,"omschrijving"]
@@ -1081,7 +1102,7 @@ server = function(input, output) {
     
     output$download_cases = downloadHandler(
       
-      filename = function() {paste("sandbox3_cases.xlsx", sep="")},
+      filename = function() {paste("sandbox3_casi.xlsx", sep="")},
       content = function(file) {write_xlsx(selected_data(input$upload_data), file)}
       
       )
@@ -1099,18 +1120,17 @@ server = function(input, output) {
     
     output$grondslag_tekst = renderText({ 
       
+      if (is.null(input$upload_data)){data = case_data()} else {data = upload_data$data}
+      
       text = ""
       
       # als geen data beschikbaar
-      if (nrow(case_data()) < 1){text = "Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
+      if (nrow(data) < 1){text = "Er is geen data beschikbaar. Voeg data toe met behulp van de tool. <br><br><br>"
       
       # als wel data beschikbaar
       } else {
         
         selection = input$micro_1_select_case_selection
-        
-        if (is.null(input$upload_data)){data = case_data()} else {data = upload_data$data}
-        
         df = subset(data, jaar == 2026 & omschrijving == selection)
         df_long = subset(data, omschrijving == selection)
         naam = df$omschrijving
@@ -1132,7 +1152,7 @@ server = function(input, output) {
         if (df$schuld > 0){text = paste0(text, "<b>Schulden.</b> Naast positieve vermogensbestanddelen, heeft belastingplichtige ook <i>", number_to_money(df$schuld), " schulden</i>. De <i>rente bedraagt ", percentify(df$schuld_rendperc), "</i>. De aanwas op schulden is daarmee gelijk aan <i>", number_to_money(bereken_aanwas(df$schuld, df$schuld_rendperc)), "</i>. Dit bedrag wordt in mindering gebracht bij het rendement voortvloeiend uit de positieve vermogensbestanddelen. <br><br>")
         } else {text = paste0(text, "<b>Schulden.</b> Belastingplichtige heeft geen schulden. <br><br>")}
         
-        text = paste0(text, "<b> Vóór het toepassen van het HVI en verliesverrekening is de belastinggrondslag daardoor gelijk aan ", number_to_money(df$aanwas), "</b>. ")
+        text = paste0(text, "<b> Vóór het toepassen van het heffingvrij inkomen en verliesverrekening is de belastinggrondslag daardoor gelijk aan ", number_to_money(df$aanwas), "</b>. ")
         
         # Vergelijking met overbruggingswetgeving
         
@@ -1193,18 +1213,65 @@ server = function(input, output) {
     
     
     
-    # PLOT 
-    output$plot_grondslag = renderPlotly({
+    # PLOTS
+    output$plot_aanwas_2026 = renderPlotly({
       
       inFile = input$upload_data
       if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
       
-      selection =  input$case_names_rows_selected
-      selection = selection[length(selection)]
-      if (is.null(selection)){selection =1}
+      df = subset(data, omschrijving == input$micro_1_select_case_selection & jaar == 2026)
       
-      id_no = subset(data, jaar == 2026)[selection,]$omschrijving[1]
-      df = subset(data, omschrijving == id_no)
+      df = data.frame(
+        
+        x = c(rep("Spaargeld (+)", nrow(df)),  rep("Financiële producten (+)", nrow(df)), 
+              rep("Onroerend goed (+)", nrow(df)),  rep("Schulden (-)", nrow(df)),
+              rep("Totaal", nrow(df))),
+        y_1 = c(df$spaargeld, df$finproduct, df$restbezit, df$schuld, 
+                (df$spaargeld + df$finproduct + df$restbezit - df$schuld)),
+        y_2 = c(df$spaargeld*(df$spaargeld_rendperc/100), df$spaargeld*(df$finproduct_rendperc/100),
+                df$restbezit*(df$restbezit_rendperc/100), df$schuld*(df$schuld_rendperc/100), 
+                (df$spaargeld*(df$spaargeld_rendperc/100) + df$spaargeld*(df$finproduct_rendperc/100) + 
+                 df$restbezit*(df$restbezit_rendperc/100) - df$schuld*(df$schuld_rendperc/100)))
+      )
+      
+      if (nrow(df) > 0){
+        
+        if (df$y_2[which(df$x == "Totaal")] > 0){
+          
+          plot_ly(x = factor(df$x, levels = c(df$x), ordered = T), y = df$y_1, name = "Vermogen", type = 'bar',
+                  marker = list(color = rep(I('#f2f2f2'),5)),
+                  line = list(color = rep(I('black'),5)), 
+                  height = 440) %>%
+            add_trace(y = df$y_2, name = 'Aanwas', marker = list(color = rep(I('#404040'), 5)), 
+                      line = list(color = rep(I('black'),5))) %>%
+            layout(xaxis = list(title = ''), yaxis = list(title = '', showticklabels = T), barmode = 'stack', 
+                   legend = 'auto')
+        } else {
+          
+          df_1 = subset(df, x == "Totaal")
+          df_2 = subset(df, x != "Totaal")
+          
+          plot_ly(x = factor(df_2$x, levels = c(df_2$x), ordered = T), y = df_2$y_1, name = "Vermogen", type = 'bar',
+                  marker = list(color = rep(I('#f2f2f2'),4)),
+                  height = 440) %>%
+            add_trace(y = df_2$y_2, name = 'Aanwas', marker = list(color = rep(I('#404040'), 4))) %>%
+            layout(xaxis = list(title = ''), yaxis = list(title = '', showticklabels = T), barmode = 'stack', 
+                   legend = 'auto') %>% 
+            add_trace(x = df_1$x, y = df_1$y_2, name = 'Totale aanwas', marker = list(color = I('#404040'))) %>%
+            layout(xaxis = list(title = ''), yaxis = list(title = '', showticklabels = T), legend = 'auto') 
+          
+          
+        }
+      } else {}
+      
+    })
+    
+    output$plot_aanwas = renderPlotly({
+      
+      inFile = input$upload_data
+      if (is.null(inFile)){data = case_data()} else {data = upload_data$data}
+      
+      df = subset(data, omschrijving == input$micro_1_select_case_selection)
       
       if (nrow(df) > 0){
       plot_ly(df, y = ~aanwas_forfait, x = ~jaar, type = 'scatter', 
@@ -1274,11 +1341,6 @@ server = function(input, output) {
         write_xlsx(
           data.frame(
             variant = "",
-            budget_raming = "niet invullen, little padawan",
-            gini_grondslag = "niet invullen, little padawan", 
-            gini_belasting = "niet invullen, little padawan", 
-            gini_opbrengst = "niet invullen, little padawan",
-            overbelasting = "niet invullen, little padawan",
             hvi = NA,
             verlies_drempel = NA,
             cf = NA,
@@ -1404,11 +1466,11 @@ server = function(input, output) {
         # text 
         text = paste0("Variant <i>", naam_variant, "</i> kent een heffingvrij inkomen <i>", number_to_money(hvi), "</i>. 
                     Iedereen die een inkomen uit vermogen heeft onder deze grens, betaalt geen belasting in box 3. 
-                    De hoogte van het hvi bepaalt eveneens het aantal burgers dat een beroep kan doen op verliesverrekening.
+                    De hoogte van het heffingvrij inkomen bepaalt eveneens het aantal burgers dat een beroep kan doen op verliesverrekening.
                     Variant voorziet een verliesverrekeningsdrempel van <i>", number_to_money(vv_drempel), "</i>; <i>",  vv_cf, " jaar</i> voorwaartse
                     verliesverrekening en <i>", vv_cb, " jaar</i> achterwaartse verliesverrekening. Iedere burger met 
                     (1) een belastbaar inkomen uit vermogen in belastingjaar ", input$plot_variant_jaar, ", d.w.z. een inkomen
-                    boven het hvi en (2) onverrekende verliezen uit de jaren <i>", input$plot_variant_jaar - vv_cf, " tot ", input$plot_variant_jaar + vv_cb, "</i> 
+                    boven het heffingvrij inkomen en (2) onverrekende verliezen uit de jaren <i>", input$plot_variant_jaar - vv_cf, " tot ", input$plot_variant_jaar + vv_cb, "</i> 
                     kan deze in mindering brengen bij de grondslag van het belastingjaar. ")
         
         if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Alle belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag van het belastingjaar.")}
@@ -1423,7 +1485,7 @@ server = function(input, output) {
                      nul niet verrekenbare verliezen (daar deze onder de verliesverrekeningsdrempel zitten). Het groene gebied toont 
                      de aanwas die in aanmerking komt voor achterwaartse verliesverrekening en het rode gebied de aanwas die in aanmerking
                      komt voor voorwaartse verliesverrekening. Beweeg met uw muis over de jaren om te inspecteren of de aanwas van dat
-                     jaar onder het hvi, belastbaar inkomen, onverrekenbaar verlies, of verrekenbaar verlies valt. U kunt het 
+                     jaar onder het heffingvrij inkomen, belastbaar inkomen, onverrekenbaar verlies, of verrekenbaar verlies valt. U kunt het 
                      belastingjaar veranderen door de slider te verschuiven. </i> <br><br>")
         
         
@@ -1484,6 +1546,8 @@ server = function(input, output) {
         #} else {
         #  text = "WAARSCHUWING: Er is geen data beschikbaar. Voeg data toe met behulp van de tool."
         
+      } else {
+        text = "Er is geen data beschikbaar. Voeg data toe met behulp van de tool. <br><br><br>"
       }
       
       text
@@ -1582,8 +1646,8 @@ server = function(input, output) {
       if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
       
       varnames = c("belastingplichtige", "variant", "risico", "belasting €", "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", 
-                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
-                   "aanwas overig bezit (%)", "aanwas schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
+                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "rendement spaargeld (%)", "rendement financiële producten (%)", 
+                   "rendement overig bezit (%)", "rendement schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
       
       if (nrow(variant_data) > 0 & nrow(case_data) > 0){
       
@@ -1633,8 +1697,8 @@ server = function(input, output) {
     observeEvent(input$delete_variant_effects, {
       
       varnames = c("belastingplichtige", "variant", "risico", "belasting €", "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", 
-                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
-                   "aanwas overig bezit (%)", "aanwas schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
+                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "rendement spaargeld (%)", "rendement financiële producten (%)", 
+                   "rendement overig bezit (%)", "rendement schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
       
       if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
       if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
@@ -1809,7 +1873,7 @@ server = function(input, output) {
       
       text = paste0("<b>Aanwas.</b> ", naam, " heeft ", tijd, " in totaal ", number_to_money(temp$aanwas), " aanwas genoten.
                     <b>Heffingvrij inkomen.</b> Ter berekening van de belasting grondslag is in de eerste plaats het heffingvrij inkomen van ", number_to_money(variant_dat$hvi), "
-                    in mindering gebracht bij de aanwas. Na verrekening van het hvi staat de grondslag van belastingplichtige ", tijd_2, " gelijk aan ", number_to_money(grondslag_na_hvi), ". 
+                    in mindering gebracht bij de aanwas. Na verrekening van het heffingvrij inkomen staat de grondslag van belastingplichtige ", tijd_2, " gelijk aan ", number_to_money(grondslag_na_hvi), ". 
                     <b>Verliesverrekening.</b> Belastingplichtige mag ", tijd_2, " verliezen groter dan ", number_to_money(variant_dat$verlies_drempel), 
                     " verrekenen van de ", variant_dat$cf, " jaar voor het belastingjaar en de ", variant_dat$cb, " jaar na het belastingjaar (teruggaand tot 2026). 
                     ", tijd_3, " heeft belastingplichtige ", number_to_money(verlies), " verlies geleden, waarvan hij ", number_to_money(verrekend_verlies), " (", 
@@ -2293,8 +2357,8 @@ server = function(input, output) {
         setNames(c("vergelijking", "variant", "raming opbrengst", "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting",
                    "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %", "belastingplichtige", "risico", "belasting €", 
                    "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)",
-                   "spaargeld", "financiële producten", "overig bezit", "schuld", "aanwas spaargeld (%)", "aanwas financiële producten (%)", 
-                   "aanwas overig bezit (%)", "aanwas schuld (%)"))
+                   "spaargeld", "financiële producten", "overig bezit", "schuld", "rendement spaargeld (%)", "rendement financiële producten (%)", 
+                   "rendement overig bezit (%)", "rendement schuld (%)"))
       
     }, server = F, rownames = F, options = list(paging =T, pageLength = 8, scrollX = T))
     
