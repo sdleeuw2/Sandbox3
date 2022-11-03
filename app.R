@@ -13,8 +13,9 @@ library(data.table)
 library(ids)
 library(ineq)
 library(gtExtras)
-
-
+library(sendmailR)
+library(mailR)
+library(shinyFiles)
 
 # foutmeldingen
 # als schijfgrens lager dan hvi
@@ -848,11 +849,11 @@ server = function(input, output) {
     
     # Easter Egg
     easteregg = data.frame(
-      omschrijving = c("Nick Jongerius", "Sjifra de Leeuw", "Josha Box", "Stefan Smalbrugge", "Nienke Cornelissen", "Allard Smit",
+      omschrijving = c("Nick Jongerius", "Sjifra de Leeuw", "Josha Box", "Nienke Cornelissen", "Allard Smit",
                        "Aschwin Moes", "Bart van den Hof", "Kees den Boogert", "Marjolein van den Berg", "Marjan Nienhuis", "Ruud Beenhakker", "Koen van Schie", 
                        "Rocus van Opstal"), 
-      voornaam = c("Nick", "Sjifra", "Josha", "Stefan", "Nienke", "Allard", "Aschwin", "Bart", "Kees", "Marjolein", "Marjan", "Ruud", "Koen", "Rocus"), 
-      geslacht = c("man", "vrouw", "man", "man", "vrouw", "man", "man", "man", "man", "vrouw", "vrouw", "man", "man", "man")
+      voornaam = c("Nick", "Sjifra", "Josha", "Nienke", "Allard", "Aschwin", "Bart", "Kees", "Marjolein", "Marjan", "Ruud", "Koen", "Rocus"), 
+      geslacht = c("man", "vrouw", "man", "vrouw", "man", "man", "man", "man", "vrouw", "vrouw", "man", "man", "man")
     )
     
     easteregg$vnw = "hij"; easteregg$vnw[easteregg$geslacht == "vrouw"] = "zij"
@@ -898,7 +899,83 @@ server = function(input, output) {
         sample(opmerkingen, size = 1),
         easyClose = TRUE
       ))
+      
     }
+    
+    stefanmodal = function(failed = F){
+      
+      modalDialog(
+            title = "Ga jij Stefan ook zo missen?", 
+            "Met ingang van volgend jaar zal Stefan ons bij het Ministerie verlaten
+            ten gunste van zijn warme nestje bij de Belastingdienst. Ga jij Stefan missen?",
+            footer = tagList(
+              actionButton("stefan_nee", "Bwah"),
+              actionButton("stefan_ja", "Jazeker")
+            ))
+      
+    }
+    
+    if (input$omschrijving == "Stefan Smalbrugge"){
+      
+      showModal(stefanmodal())
+      
+      # Negatief antwoord
+      observeEvent(input$stefan_nee, {
+        showModal(
+          modalDialog(
+            title = "Liar liar pants on fire", 
+            "Daar geloof ik niets van! Try again: Ga jij Stefan missen?",
+            footer = tagList(
+              actionButton("stefan_nee_2", "Ik ben monster"),
+              actionButton("stefan_ja_2", "Ja natuurlijk!")
+            )))
+        
+        observeEvent(input$stefan_nee_2, {
+          
+          showModal(modalDialog(title = "Okay dan...", "Hij gaat jou ook niet missen."))
+          
+        })
+        
+      })
+      
+      # Positief antwoord
+      observeEvent(input$stefan_ja, {
+        
+        showModal(
+          modalDialog(
+            title = "Laat hem dat dan weten, kneus!", 
+            "Stuur hem hieronder een berichtje, een teken van waardering of een ongepast lange liefdesverklaring. P.S. Vergeet niet te vermelden van wie het berichtje afkomstig is!",
+            footer = tagList(
+              textInput("stefan_ja_text", label = NULL, width = '100%', placeholder = "Schrijf hier een lief berichtje."), 
+              actionButton("stefan_ja_verstuur", "Verstuur berichtje")
+            )))
+        
+        observeEvent(input$stefan_ja_verstuur, {
+          
+          #Stefan Smalbrugge
+          send.mail(from = "sjifra.de.leeuw@outlook.com",
+                    to = "sjifra.de.leeuw@gmail.com",
+                    subject = "Iemand op het Ministerie van Financiën mist je ...",
+                    body = input$stefan_ja_text,
+                    smtp = list(
+                      host.name="smtp.office365.com",
+                      port=587, 
+                      tls=T,
+                      user.name="sjifra.de.leeuw@outlook.com",
+                      passwd="Winston3001_minfin"),
+                    authenticate = TRUE, send = T)
+          
+          removeModal()
+          
+        })
+        
+        
+      })
+      
+    }
+    
+    
+    
     
     # het serieuze gedeelte 
     if (sum(c(input$spaargeld_rendperc, input$finproduct_rendperc, input$restbezit_rendperc, input$schuld_rendperc)) > 0){
@@ -1653,8 +1730,7 @@ server = function(input, output) {
     
     ############ TAB 1 ###########
     
-    # OUTPUT TABEL
-    output$variant_case_effects = renderDataTable({
+    gen_case_effects = function(){
       
       if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
       if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
@@ -1664,22 +1740,29 @@ server = function(input, output) {
                    "rendement overig bezit (%)", "rendement schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
       
       if (nrow(variant_data) > 0 & nrow(case_data) > 0){
-      
-      temp = list()
-      # elke case
-      for (i in c(1:length(unique(case_data$omschrijving)))){
-        # elke variant
-        for (j in c(1:nrow(variant_data))){
-          temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
-          
-        }}
-      
+        
+        temp = list()
+        # elke case
+        for (i in c(1:length(unique(case_data$omschrijving)))){
+          # elke variant
+          for (j in c(1:nrow(variant_data))){
+            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
+            
+          }}
+        
         temp = do.call(rbind, temp) %>% setNames(varnames)
-        temp
       } else {
         temp = variant_case_effects %>% setNames(varnames) %>% filter(., row_number() %in% -1)
-        temp
       }
+      
+      return(temp)
+      
+    }
+    
+    # OUTPUT TABEL
+    output$variant_case_effects = renderDataTable({
+      
+      gen_case_effects()
     
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
     
@@ -1726,49 +1809,22 @@ server = function(input, output) {
         })
       
       observeEvent(input$annuleer_reset, {removeModal()})
-      
-      
-      
+    
     })
     
     # KNOP VERWIJDER VARIANT CORRIGEER!!!
     observeEvent(input$delete_variant_effects, {
       
-      varnames = c("belastingplichtige", "variant", "risico", "belasting €", "belasting (% aanwas)", "verlies", "verrekend verlies", "verrekend verlies (% verlies)", 
-                   "vermogen", "aanwas", "grondslag", "grondslag (% aanwas)", "spaargeld", "financiële producten", "overig bezit", "schuld", "rendement spaargeld (%)", "rendement financiële producten (%)", 
-                   "rendement overig bezit (%)", "rendement schuld (%)", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %")
-      
-      if (is.null(input$upload_data_variant)){variant_data = variant_data_input()} else {variant_data = upload_variant_data$data}
-      if (is.null(input$upload_data)){case_data = case_data()} else {case_data = upload_data$data}
-      
-      if (nrow(variant_data) > 0 & nrow(case_data) > 0){
-        
-        temp = list()
-        # elke case
-        for (i in c(1:length(unique(case_data$omschrijving)))){
-          # elke variant
-          for (j in c(1:nrow(variant_data))){
-            temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
-            
-          }}
-        
-      temp = do.call(rbind, temp) 
-      
+      temp = gen_case_effects()
       variant = temp$variant[input$variant_case_effects_rows_selected]
-      variant = variant[1]
       
-          if (is.null(input$upload_data_variant)){
-            variant_data_input() %>%
-              subset(., variant != variant) %>%
-              setNames(varnames) %>%
-              variant_data_input()
-          } else {
-            upload_variant_data$data = upload_variant_data$data %>%
-              subset(., variant != variant) %>%
-              setNames(varnames) 
-          }
+      if (is.null(input$upload_data_variant)){
+        variant_data_input() %>%
+          filter(variant != variant) %>%
+          variant_data_input()
       } else {
-        temp = variant_case_effects %>% filter(., row_number() %in% -1)
+        upload_variant_data$data = upload_variant_data$data %>%
+          filter(variant != variant)
       }
       
     })
