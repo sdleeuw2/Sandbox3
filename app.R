@@ -245,22 +245,26 @@ library(gtExtras)
   # functie om belasting te bepalen voor een bepaalde grondslag 
   bepaal_belasting = function(grondslag, schijf_2 = NA, schijf_3 = NA, tarief_1 = 34, tarief_2 = NA, tarief_3 = NA){
     
+    if (grondslag > 0){
     # Schijf 3
-    if(!is.na(schijf_3)){schijf_3 = grondslag - schijf_3} else {schijf_3 = 0}
-    if(schijf_3 < 0){schijf_3 = 0}
-    if(!is.na(tarief_3)){belasting_3 = schijf_3 * (tarief_3/100)} else {belasting_3 = NA}
-    
-    # Schijf 2
-    if(!is.na(schijf_2)){schijf_2 = grondslag - schijf_3 - schijf_2} else {schijf_2 = 0}
-    if(schijf_2 < 0){schijf_2 = 0}
-    if(!is.na(tarief_2)){belasting_2 = schijf_2 * (tarief_2/100)} else {belasting_2 = NA}
-    
-    # Schijf 1 
-    schijf_1 = grondslag - schijf_3 - schijf_2
-    if(schijf_1 < 0){schijf_1 = 0}
-    if(!is.na(tarief_1)){belasting_1 = schijf_1 * (tarief_1/100)} else {belasting_1 = NA}
-    
-    out = data.frame(schijf = c(1:3), aanwas = c(schijf_1, schijf_2, schijf_3), belasting = c(belasting_1, belasting_2, belasting_3))
+      if(!is.na(schijf_3)){schijf_3 = grondslag - schijf_3} else {schijf_3 = 0}
+      if(schijf_3 < 0){schijf_3 = 0}
+      if(!is.na(tarief_3)){belasting_3 = schijf_3 * (tarief_3/100)} else {belasting_3 = NA}
+      
+      # Schijf 2
+      if(!is.na(schijf_2)){schijf_2 = grondslag - schijf_3 - schijf_2} else {schijf_2 = 0}
+      if(schijf_2 < 0){schijf_2 = 0}
+      if(!is.na(tarief_2)){belasting_2 = schijf_2 * (tarief_2/100)} else {belasting_2 = NA}
+      
+      # Schijf 1 
+      schijf_1 = grondslag - schijf_3 - schijf_2
+      if(schijf_1 < 0){schijf_1 = 0}
+      if(!is.na(tarief_1)){belasting_1 = schijf_1 * (tarief_1/100)} else {belasting_1 = NA}
+      
+      out = data.frame(schijf = c(1:3), aanwas = c(schijf_1, schijf_2, schijf_3), belasting = c(belasting_1, belasting_2, belasting_3))
+    } else {
+      out = data.frame(schijf = c(1:3), aanwas = c(0,0,0), belasting = c(0,0,0))
+    }
     
     return(out)
   }
@@ -294,13 +298,13 @@ library(gtExtras)
   calculate_variant_stats = function(data = test, hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA){
     
     # test data
-    test_new = list()
-    test_ideal = list()
-    for (i in 1:length(unique(test$id))){
+    data_new = list()
+    data_ideal = list()
+    for (i in 1:length(unique(data$id))){
       
-      test_id = unique(test$id)[i]
-      temp = verreken_verlies(subset(test, id == test_id), hvi = hvi, cf = cf, cb = cb, drempel = vv_drempel)
-      temp_ideal = verreken_verlies(subset(test, id == test_id), hvi = hvi, cf = 20, cb = 20, drempel = 0)
+      data_id = unique(data$id)[i]
+      temp = verreken_verlies(subset(data, id == data_id), hvi = hvi, cf = cf, cb = cb, drempel = vv_drempel)
+      temp_ideal = verreken_verlies(subset(data, id == data_id), hvi = hvi, cf = 20, cb = 20, drempel = 0)
       
       temp$belasting = NA
       temp_ideal$belasting = NA
@@ -309,36 +313,37 @@ library(gtExtras)
         temp_ideal$belasting[j] = sum(bepaal_belasting(temp_ideal$grondslag[j], schijf_2 = s2, schijf_3 = s3, tarief_1 = t1, tarief_2 = t2, tarief_3 = t3)$belasting, na.rm = T)
       }
       
-      test_new[[i]] = temp
-      test_ideal[[i]] = temp_ideal
+      data_new[[i]] = temp
+      data_ideal[[i]] = temp_ideal
       
     }
     
-    test_new = do.call(rbind, test_new)
-    test_new_agg = aggregate(.~id, test_new, sum)
-    test_ideal = do.call(rbind, test_ideal)
+    data_new = do.call(rbind, data_new)
+    data_new_agg = aggregate(.~id, data_new, sum)
+    data_ideal = do.call(rbind, data_ideal)
     
-    # budgettaire raming
-    scale = 12000000 / nrow(test_new_agg)
-    budget_raming = round(sum(test_new$belasting, na.rm = T)*scale / 1000000000, 2)
+    # budgettaire raming 
+    # HIER CORRIGEREN
+    if (data_new_agg > 0){scale = 12000000 / nrow(data_new_agg)} else {scale = NA}
+    budget_raming = round(sum(data_new$belasting, na.rm = T)*scale / 1000000000, 2)
     
     # grondslag (on)gelijkheid
-    test_new$grondslag_perc = 0
-    test_new$grondslag_perc[test_new$aanwas > 0] = (test_new$grondslag[which(test_new$aanwas > 0)] / test_new$aanwas[which(test_new$aanwas > 0)])*100
+    data_new$grondslag_perc = 0
+    data_new$grondslag_perc[data_new$aanwas > 0] = (data_new$grondslag[which(data_new$aanwas > 0)] / data_new$aanwas[which(data_new$aanwas > 0)])*100
     
-    gini_grondslag = round(ineq(test_new$grondslag_perc[which(test_new$jaar == 2045)],type="Gini"),2)
+    gini_grondslag = round(ineq(data_new$grondslag_perc[which(data_new$jaar == 2045)],type="Gini"),2)
     
     # belasting (on)gelijkheid
-    test_new$belasting_perc = 0
-    test_new$belasting_perc[test_new$aanwas > 0] = (test_new$belasting[which(test_new$aanwas > 0)] / test_new$belasting[which(test_new$aanwas > 0)])*100
+    data_new$belasting_perc = 0
+    data_new$belasting_perc[data_new$aanwas > 0] = (data_new$belasting[which(data_new$aanwas > 0)] / data_new$belasting[which(data_new$aanwas > 0)])*100
     
-    gini_belasting = round(ineq(test_new$belasting_perc[which(test_new$jaar == 2045)],type="Gini"),2)
+    gini_belasting = round(ineq(data_new$belasting_perc[which(data_new$jaar == 2045)],type="Gini"),2)
     
     # opbrengst instabiliteit 
-    gini_opbrengst = round(ineq(aggregate(belasting~jaar, data = test_new, FUN = sum)$belasting,type="Gini"),2)
+    gini_opbrengst = round(ineq(aggregate(belasting~jaar, data = data_new, FUN = sum)$belasting,type="Gini"),2)
     
     # overbelasting
-    overbelasting = round(budget_raming - (sum(test_ideal$belasting, na.rm = T)*scale/1000000000),2)
+    overbelasting = round(budget_raming - (sum(data_ideal$belasting, na.rm = T)*scale/1000000000),2)
     
     return(list(budget_raming = budget_raming, gini_grondslag = gini_grondslag, gini_belasting = gini_belasting, gini_opbrengst = gini_opbrengst, overbelasting = overbelasting))
     
@@ -362,6 +367,8 @@ library(gtExtras)
                schuld = schuld, spaargeld_rendperc = spaargeld_rendperc,
                finproduct_rendperc = finproduct_rendperc, restbezit_rendperc = restbezit_rendperc, 
                schuld_rendperc = schuld_rendperc), sd_rend = sd_rend)
+  
+  
   
   # varianten data
   variant_stats = calculate_variant_stats(hvi = 1000, vv_drempel = 1000, cf = 9, cb = 1, s2 = NA, s3 = NA, t1 = 34, t2 = NA, t3 = NA)
@@ -395,8 +402,7 @@ library(gtExtras)
     if (verlies > 0){verrekend_verlies_perc = (sum(dat_case_verlies$cf, na.rm = T) + sum(dat_case_verlies$cb, na.rm = T))/verlies} else {verrekend_verlies_perc = 0}
     # percentage grondslag tov aanwas
     if (sum(dat_case_verlies$grondslag, na.rm = T) > 0){grondslag_perc = round((sum(dat_case_verlies$grondslag, na.rm = T)/sum(dat_case$aanwas, na.rm = T))*100, 2)} else {grondslag_perc = 0}
-    
-        
+
     # berekeningen
     temp_case = data.frame(
       
@@ -435,8 +441,6 @@ library(gtExtras)
       tarief_2 = dat_variant$tarief_2, 
       tarief_3 = dat_variant$tarief_3)
       
-      
-    
       temp_case$verlies[is.na(temp_case$verlies)] = 0
       temp_case$verrekend_verlies[is.na(temp_case$verrekend_verlies)] = 0
       temp_case$verrekend_verlies_perc[is.na(temp_case$verrekend_verlies_perc)] = 0
@@ -890,48 +894,58 @@ server = function(input, output) {
       
       
       showModal(modalDialog(
-        title = sample(opmerkingen, size = 1),
+        title = paste0("Wat als ... ", input$omschrijving, " aan Lang Leve de Liefde (de meer genante versie van First Dates op SBS6) zou deelnemen?"),
+        sample(opmerkingen, size = 1),
         easyClose = TRUE
       ))
     }
     
     # het serieuze gedeelte 
-    
-    sd = 0.4
-    sd_rend = 0.5*isolate(input$risico)*sd
-    
-    if (is.null(input$upload_data)){data = case_data()} 
-    if (!is.null(input$upload_data)){data = upload_data$data}
-    if(nrow(data) == 0){id = 1} else {id = max(data$id) + 1}
-    
-    if(isolate(input$omschrijving) %in% data$omschrijving){omschrijving_new = paste0(isolate(input$omschrijving), " ", max(data$id) + 1)
-    } else {omschrijving_new = isolate(input$omschrijving)}
-    
-    if (is.na(isolate(input$spaargeld))){spaargeld = 0} else {spaargeld = isolate(input$spaargeld)}
-    if (is.na(isolate(input$finproduct))){finproduct = 0} else {finproduct = isolate(input$finproduct)}
-    if (is.na(isolate(input$restbezit))){restbezit = 0} else {restbezit = isolate(input$restbezit)}
-    if (is.na(isolate(input$schuld))){schuld = 0} else {schuld = isolate(input$schuld)}
-    
-    if (is.na(isolate(input$spaargeld_rendperc))){spaargeld_rendperc = 0} else {spaargeld_rendperc = isolate(input$spaargeld_rendperc)}
-    if (is.na(isolate(input$finproduct_rendperc))){finproduct_rendperc = 0} else {finproduct_rendperc = isolate(input$finproduct_rendperc)}
-    if (is.na(isolate(input$restbezit_rendperc))){restbezit_rendperc = 0} else {restbezit_rendperc = isolate(input$restbezit_rendperc)}
-    if (is.na(isolate(input$schuld_rendperc))){schuld_rendperc = 0} else {schuld_rendperc = isolate(input$schuld_rendperc)}
-    
-    dat = gen_history(data.frame(
-      id = id, omschrijving = omschrijving_new, 
-      risico = gen_value(mean = isolate(input$risico), sd = sd, n = 1), jaar = 2026,
-      spaargeld = spaargeld, finproduct = finproduct, restbezit = restbezit, 
-      schuld = schuld, spaargeld_rendperc = spaargeld_rendperc, finproduct_rendperc = finproduct_rendperc, restbezit_rendperc = restbezit_rendperc, 
-      schuld_rendperc = schuld_rendperc), sd_rend = sd_rend, crisis = input$crisis)
-    
-    if (is.null(input$upload_data)){  
-      case_data() %>% 
-        bind_rows(dat) %>%
-        case_data()
-    } else { 
-      upload_data$data = upload_data$data %>% bind_rows(dat)   
+    if (sum(c(input$spaargeld_rendperc, input$finproduct_rendperc, input$restbezit_rendperc, input$schuld_rendperc)) > 0){
       
-    }
+      sd = 0.4
+      sd_rend = 0.5*isolate(input$risico)*sd
+      
+      if (is.null(input$upload_data)){data = case_data()} 
+      if (!is.null(input$upload_data)){data = upload_data$data}
+      if(nrow(data) == 0){id = 1} else {id = max(data$id) + 1}
+      
+      if(isolate(input$omschrijving) %in% data$omschrijving){omschrijving_new = paste0(isolate(input$omschrijving), " ", max(data$id) + 1)
+      } else {omschrijving_new = isolate(input$omschrijving)}
+      
+      if (is.na(isolate(input$spaargeld))){spaargeld = 0} else {spaargeld = isolate(input$spaargeld)}
+      if (is.na(isolate(input$finproduct))){finproduct = 0} else {finproduct = isolate(input$finproduct)}
+      if (is.na(isolate(input$restbezit))){restbezit = 0} else {restbezit = isolate(input$restbezit)}
+      if (is.na(isolate(input$schuld))){schuld = 0} else {schuld = isolate(input$schuld)}
+      
+      if (is.na(isolate(input$spaargeld_rendperc))){spaargeld_rendperc = 0} else {spaargeld_rendperc = isolate(input$spaargeld_rendperc)}
+      if (is.na(isolate(input$finproduct_rendperc))){finproduct_rendperc = 0} else {finproduct_rendperc = isolate(input$finproduct_rendperc)}
+      if (is.na(isolate(input$restbezit_rendperc))){restbezit_rendperc = 0} else {restbezit_rendperc = isolate(input$restbezit_rendperc)}
+      if (is.na(isolate(input$schuld_rendperc))){schuld_rendperc = 0} else {schuld_rendperc = isolate(input$schuld_rendperc)}
+      
+      dat = gen_history(data.frame(
+        id = id, omschrijving = omschrijving_new, 
+        risico = gen_value(mean = isolate(input$risico), sd = sd, n = 1), jaar = 2026,
+        spaargeld = spaargeld, finproduct = finproduct, restbezit = restbezit, 
+        schuld = schuld, spaargeld_rendperc = spaargeld_rendperc, finproduct_rendperc = finproduct_rendperc, restbezit_rendperc = restbezit_rendperc, 
+        schuld_rendperc = schuld_rendperc), sd_rend = sd_rend, crisis = input$crisis)
+      
+      if (is.null(input$upload_data)){  
+        case_data() %>% 
+          bind_rows(dat) %>%
+          case_data()
+      } else { 
+        upload_data$data = upload_data$data %>% bind_rows(dat)   
+        
+      }} else {
+        
+        showModal(modalDialog(
+          title = "Casus niet toegevoegd",
+          "Een burger zonder rendement zal onder geen enkele variant belasting betalen in Box 3.", 
+          easyClose = TRUE
+        ))
+        
+      }
     
   })
   
@@ -1669,27 +1683,51 @@ server = function(input, output) {
     
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
     
+    
+    dataModal <- function(failed = FALSE) {
+      modalDialog(
+        title = "Waarschuwing", 
+        "U staat op het punt alle casus en variant data te verwijderen.
+        Weet u zeker dat u deze actie wil voltooien?",
+        footer = tagList(
+          actionButton("annuleer_reset", "Annuleer"),
+          actionButton("ok_reset", "Ga door")
+        ))
+    }
+    
+    
     # KNOP RESET DATA
     observeEvent(input$reset_variant_case_effects, {
       
-      if (is.null(input$upload_data_variant)){
-        variant_data_input() %>%
-          filter(row_number() %in% -1) %>%
-          variant_data_input()
-      } else {
-        upload_variant_data$data = upload_variant_data$data %>%
-          filter(row_number() %in% -1)
-      }
+      showModal(dataModal())
       
-      if (is.null(input$upload_data)){
-        case_data() %>%
-          filter(row_number() %in% -1) %>%
-          case_data()
+      observeEvent(input$ok_reset, {
+      
+        if (is.null(input$upload_data_variant)){
+          variant_data_input() %>%
+            filter(row_number() %in% -1) %>%
+            variant_data_input()
+        } else {
+          upload_variant_data$data = upload_variant_data$data %>%
+            filter(row_number() %in% -1)
+        }
         
-      } else {
-        upload_data$data = upload_data$data %>%
-          filter(row_number() %in% -1)
-      }
+        if (is.null(input$upload_data)){
+          case_data() %>%
+            filter(row_number() %in% -1) %>%
+            case_data()
+          
+        } else {
+          upload_data$data = upload_data$data %>%
+            filter(row_number() %in% -1)}
+        
+        removeModal()
+        
+        })
+      
+      observeEvent(input$annuleer_reset, {removeModal()})
+      
+      
       
     })
     
