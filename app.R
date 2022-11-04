@@ -28,6 +28,9 @@ library(shinyFiles)
 
 # FUNCTIONS
   
+  # negatie %in%
+  `%notin%` <- Negate(`%in%`) 
+  
   # functie om aanwas in overbruggingswetgeving te bepalen
   overbrug_me = function(spaargeld, finproduct, restbezit, schuld, type = "aanwas voor hvv"){
     
@@ -929,10 +932,41 @@ server = function(input, output) {
               actionButton("stefan_nee_2", "Ik ben monster"),
               actionButton("stefan_ja_2", "Ja natuurlijk!")
             )))
+      })
         
         observeEvent(input$stefan_nee_2, {
           
           showModal(modalDialog(title = "Okay dan...", "Hij gaat jou ook niet missen."))
+          
+        })
+        
+        observeEvent(input$stefan_ja_2, {
+          
+          showModal(
+            modalDialog(
+              title = "Laat hem dat dan weten, kneus!", 
+              "Stuur hem hieronder een berichtje, een teken van waardering of een ongepast lange liefdesverklaring. P.S. Vergeet niet te vermelden van wie het berichtje afkomstig is!",
+              footer = tagList(
+                textInput("stefan_ja_text", label = NULL, width = '100%', placeholder = "Schrijf hier een lief berichtje."), 
+                actionButton("stefan_ja_verstuur", "Verstuur berichtje")
+              )))
+          
+          observeEvent(input$stefan_ja_verstuur, {
+            
+            #Stefan Smalbrugge
+            send.mail(from = "sjifra.de.leeuw@outlook.com",
+                      to = "sjifra.de.leeuw@gmail.com",
+                      subject = "Iemand op het Ministerie van Financiën mist je ...",
+                      body = input$stefan_ja_text,
+                      smtp = list(
+                        host.name="smtp.office365.com",
+                        port=587, 
+                        tls=T,
+                        user.name="sjifra.de.leeuw@outlook.com",
+                        passwd="Winston3001_minfin"),
+                      authenticate = TRUE, send = T)
+            
+            removeModal()
           
         })
         
@@ -1767,7 +1801,7 @@ server = function(input, output) {
     }, server = F, rownames = F, selection = 'single', options = list(paging =T, pageLength = 16, scrollX = T))
     
     
-    dataModal <- function(failed = FALSE) {
+    dataModal = function(failed = FALSE) {
       modalDialog(
         title = "Waarschuwing", 
         "U staat op het punt alle casus en variant data te verwijderen.
@@ -1812,24 +1846,47 @@ server = function(input, output) {
     
     })
     
-    # KNOP VERWIJDER VARIANT CORRIGEER!!!
+    # KNOP VERWIJDER VARIANT 
     observeEvent(input$delete_variant_effects, {
       
       temp = gen_case_effects()
-      variant = temp$variant[input$variant_case_effects_rows_selected]
+      variant_id = as.character(temp$variant[input$variant_case_effects_rows_selected])
       
       if (is.null(input$upload_data_variant)){
         variant_data_input() %>%
-          filter(variant != variant) %>%
+          subset(variant %notin% variant_id) %>%
           variant_data_input()
       } else {
         upload_variant_data$data = upload_variant_data$data %>%
-          filter(variant != variant)
+          subset(variant %notin% variant_id)
       }
       
     })
     
-    # KNOP VERWIJDER CASE CORRIGEER!!!
+    # KNOP VERWIJDER CASE 
+    observeEvent(input$delete_case_effects, {
+      
+      temp = gen_case_effects()
+      case_id = as.character(temp$belastingplichtige[input$variant_case_effects_rows_selected])
+      
+      if (is.null(input$upload_data)){
+        case_data() %>%
+          subset(omschrijving %notin% case_id) %>%
+          case_data()
+        
+      } else {
+        upload_data$data = upload_data$data %>%
+          subset(omschrijving %notin% case_id)}
+      
+    })
+    
+    # KNOP DOWNLOAD
+    output$download_variants_case_effects = downloadHandler(
+      
+      filename = function() {paste("sandbox3_resultaten.xlsx", sep="")},
+      content = function(file) {write_xlsx(gen_case_effects(), file)}
+      
+    )
     
     ############ TAB 2 ###########
     
@@ -2439,8 +2496,6 @@ server = function(input, output) {
       select(data, c("variant")) 
       
     }, server = F, rownames = F, options = list(paging =T, pageLength = 7, scrollX = T))
-    
-    `%notin%` <- Negate(`%in%`) # NAAR BOVEN!!!!
     
     # VOORGEPROGRAMEERDE STANDAARD DATA 
     comparison_data = reactiveVal(comparison_data)
