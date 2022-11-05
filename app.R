@@ -56,10 +56,15 @@ library(shinyFiles)
   }
 
   # function to draw value from normal distribution
-  gen_value = function(mean, sd, n = 1){x = rnorm(n = n, mean = mean, sd = mean*sd); return(x)}
+  gen_value = function(mean, sd, n = 1){x = rnorm(n = n, mean = mean, sd = 0.2); return(x)}
   
   # update value last year 
-  update_value = function(current_value, perc_change){new_value = current_value*(1+(perc_change/100))}
+  update_value = function(current_value, perc_change){
+    new_value = current_value + (current_value * (perc_change / 100))
+    return(new_value)
+  }
+  
+  #update_value(10, -10); gen_value(-10, 0.2, n = 1)
   
   # function to generate history for given input 
   gen_history = function(row, sd_rend, crisis = "nee"){
@@ -275,6 +280,7 @@ library(shinyFiles)
   
   # functie om getal om te zetten in bedrag in €
   number_to_money = function(number){
+    options(scipen=999)
     number = round(number, digits = 2)
     if (number >= 0){number = paste0("€", number)} else {number = paste0("-€", abs(number))}
     return(number)
@@ -646,13 +652,13 @@ ui = fluidPage(
                            
                    fluidPage(HTML("<br>"), 
                              
-                             fluidRow(
-                               h5("Welke variant wilt u bekijken?"), uiOutput("micro_1_select_variant"),
-                               column(5, h5(""), htmlOutput("variant_tekst", align = "justify")),
-                               column(7, h5("Visualisatie variant"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de specificaties van de variant."), 
-                                      plotlyOutput("plot_variant"), 
-                                      sliderInput(inputId = "plot_variant_jaar", label = NULL, min = 2026, max = 2045, value = 2035, step = 1, pre = "JAAR = ", width = '100%'))
-                             )
+                   fluidRow(
+                     column(5, h5("Welke variant wilt u bekijken?"), uiOutput("micro_1_select_variant")),
+                     column(7, h5("Welk jaar wilt u bekijken?"), selectInput("plot_variant_jaar", label = NULL, choices = 2026:2045, selected = 2036, width = '100%')),
+                     column(5, h5(""), htmlOutput("variant_tekst", align = "justify")),
+                     column(7, h5("Visualisatie variant"), helpText("Beweeg met de cursor over de grafiek om nadere toelichting te krijgen over de specificaties van de variant."), 
+                            plotlyOutput("plot_variant"))
+                   )
                     ))))),
             
             tabPanel("Stap 3: Bekijk resultaten",
@@ -1379,6 +1385,44 @@ server = function(input, output) {
     # KNOP VARIANT TOEVOEGEN
     observeEvent(input$add_variant, {
       
+      # inbouw foutmeldingen
+      
+      # 1. als schijf 2 lager ligt dan hvi 
+      if (!is.na(input$schijf_2) & input$schijf_2 <= input$hvi){
+        
+        showModal(modalDialog(
+          title = "Casus niet toegevoegd",
+          "De ondergrens van de tweede schijf kan niet lager zijn dan of gelijk zijn aan het heffing vrij inkomen.", 
+          easyClose = TRUE
+        ))
+      
+      # 2. als schijf 3 lager ligt dan schijf 2 of hvi  
+      } else if (!is.na(input$schijf_3) & input$schijf_3 <= input$hvi | !is.na(input$schijf_3) & !is.na(input$schijf_2) & input$schijf_3 <= input$schijf_2) {
+        
+        showModal(modalDialog(
+          title = "Casus niet toegevoegd",
+          "De ondergrens van de derde schijf kan niet lager zijn dan of gelijk zijn aan de ondergrens van schijf 2 of het heffingvrij inkomen.", 
+          easyClose = TRUE
+        ))
+        
+      # 3. als geen tarief
+      } else if (is.na(input$tarief_1)){
+        showModal(modalDialog(
+          title = "Casus niet toegevoegd",
+          "U heeft geen tarief bepaald.", 
+          easyClose = TRUE
+        ))
+      
+      # 4. als tarief incompleet
+      } else if (!is.na(input$schijf_2) & is.na(input$tarief_2) | !is.na(input$schijf_3) & is.na(input$tarief_3)){
+        showModal(modalDialog(
+          title = "Casus niet toegevoegd",
+          "U bent één of meerdere tarieven vergeten in te voeren.", 
+          easyClose = TRUE
+        ))
+        
+      } else {
+      
       if (is.null(input$upload_data_variant)){data = variant_data_input()} 
       if (!is.null(input$upload_data_variant)){data = upload_variant_data$data}
       
@@ -1406,6 +1450,8 @@ server = function(input, output) {
         dat = dat %>% setNames(c("variant", "opbrengst",  "grondslag ongelijkheid", "belasting ongelijkheid", "opbrengst instabiliteit", "overbelasting", "hvi", "verlies drempel", "CF", "CB", "S2 €", "S3 €", "T1 %", "T2 %", "T3 %"))
         upload_variant_data$data = upload_variant_data$data %>% 
           bind_rows(dat)   
+      }
+      
       } 
       
     }) 
@@ -1510,7 +1556,7 @@ server = function(input, output) {
     # DATA VARIANT NAMES
     output$micro_1_select_variant = renderUI({
       if (is.null(input$upload_data_variant)){data = variant_data_input()} else {data = upload_variant_data$data}
-      selectInput("micro_1_select_variant_selection", label = NULL, choices = data$variant)
+      selectInput("micro_1_select_variant_selection", label = NULL, choices = data$variant, width = '100%')
     })
     
     # TEKST VARIANT 
@@ -1535,6 +1581,8 @@ server = function(input, output) {
         
         vv_cf = dat_variant$cf
         vv_cb = dat_variant$cb
+        
+        jaar_nu = as.numeric(input$plot_variant_jaar)
         #vv_cf_verschil = vv_cf - 9
         #vv_cb_verschil = vv_cb - 1
         
@@ -1549,8 +1597,8 @@ server = function(input, output) {
                     De hoogte van het heffingvrij inkomen bepaalt eveneens het aantal burgers dat een beroep kan doen op verliesverrekening.
                     Variant voorziet een verliesverrekeningsdrempel van <i>", number_to_money(vv_drempel), "</i>; <i>",  vv_cf, " jaar</i> voorwaartse
                     verliesverrekening en <i>", vv_cb, " jaar</i> achterwaartse verliesverrekening. Iedere burger met 
-                    (1) een belastbaar inkomen uit vermogen in belastingjaar ", input$plot_variant_jaar, ", d.w.z. een inkomen
-                    boven het heffingvrij inkomen en (2) onverrekende verliezen uit de jaren <i>", input$plot_variant_jaar - vv_cf, " tot ", input$plot_variant_jaar + vv_cb, "</i> 
+                    (1) een belastbaar inkomen uit vermogen in belastingjaar ", jaar_nu, ", d.w.z. een inkomen
+                    boven het heffingvrij inkomen en (2) onverrekende verliezen uit de jaren <i>", jaar_nu - vv_cf, " tot ", jaar_nu + vv_cb, "</i> 
                     kan deze in mindering brengen bij de grondslag van het belastingjaar. ")
         
         if (schijf_aantal == 1){text = paste0(text, "Variant kent een vlaktaks. Alle belastingplichtigen betalen <i>", percentify(t1), "</i> belasting over de grondslag van het belastingjaar.")}
@@ -1639,8 +1687,7 @@ server = function(input, output) {
     output$plot_variant = renderPlotly({
       
       
-      ### HIER
-      input_jaar = input$plot_variant_jaar
+      input_jaar = as.numeric(input$plot_variant_jaar)
       
       if (is.null(input$upload_data_variant)){dat_variant = variant_data_input()} else {dat_variant = upload_variant_data$data}
       dat_variant = subset(dat_variant, variant == input$micro_1_select_variant_selection)
@@ -1673,7 +1720,7 @@ server = function(input, output) {
         s1_text = paste0("<b>Schijf 1:</b> ", percentify(t1), " belasting over aanwas.")
         
         # PLOT
-        fig = plot_ly(showlegend = F) %>%
+        fig = plot_ly(showlegend = F, height = 500) %>%
           
           # hvi en vv drempel
           add_polygons(x=c(2025.5,2025.5,2045.5,2045.5),y=c(space,hvi,hvi,space), color=I("grey70"), opacity = 0.3,  name = "<b>Heffingvrij inkomen:</b> aanwas is niet belastbaar en \nkan ook niet verrekend worden met verliezen.", hoverinfo = 'text', hovertemplate = '%{text}') %>% 
@@ -1707,7 +1754,7 @@ server = function(input, output) {
         }
         
         fig = fig %>%
-          add_trace(x=~jaar, y=~aanwas, opacity = 0.7, color=I("grey20"), line = list(dash = 'dash'), name = "<b>Aanwas</b>", hovertemplate = '%{y}') %>%
+          add_trace(x=~jaar, y=~aanwas, opacity = 0.7, color=I("black"), line = list(dash = 'dash'), name = "<b>Aanwas</b>", hovertemplate = '%{y}') %>%
           layout(yaxis = list(showticklabels = F), hovermode = "x unified", showlegend = T)
         
         fig
