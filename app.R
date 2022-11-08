@@ -3314,7 +3314,7 @@ server = function(input, output) {
       
       s1_text = paste0("<b>Schijf 1:</b> ",
                        percentify(t1),
-                       " belasting over aanwas.")
+                       " belasting over aanwas boven het hvi.")
       
       # PLOT
       fig = plot_ly(showlegend = F, height = 500) %>%
@@ -3385,7 +3385,7 @@ server = function(input, output) {
         s1_text = paste0(
           "<b>Schijf 1:</b> ",
           percentify(t1),
-          " belasting over aanwas tot ",
+          " belasting over aanwas boven het hvi tot ",
           number_to_money(s2),
           "."
         )
@@ -3776,7 +3776,7 @@ server = function(input, output) {
     if (!is.na(variant_dat$tarief_1)) {
       t1 = paste0(percentify(variant_dat$tarief_1), " tarief")
       aanwas_1 = belasting$aanwas[1]
-      belasting_1 = belasting$belasting[1]
+      belasting_1 = round(belasting$belasting[1],2)
     } else {
       t1 = "n.v.t."
       aanwas_1 = "n.v.t."
@@ -3786,7 +3786,7 @@ server = function(input, output) {
     if (!is.na(variant_dat$tarief_2)) {
       t2 = paste0(percentify(variant_dat$tarief_2), " tarief")
       aanwas_2 = belasting$aanwas[2]
-      belasting_2 = belasting$belasting[2]
+      belasting_2 = round(belasting$belasting[2],2)
     } else {
       t2 = "n.v.t."
       aanwas_2 = "n.v.t."
@@ -3796,7 +3796,7 @@ server = function(input, output) {
     if (!is.na(variant_dat$tarief_3)) {
       t3 = paste0(percentify(variant_dat$tarief_3), " tarief")
       aanwas_3 = belasting$aanwas[3]
-      belasting_3 = belasting$belasting[3]
+      belasting_3 = round(belasting$belasting[3],2)
     } else {
       t3 = "n.v.t."
       aanwas_3 = "n.v.t."
@@ -3824,7 +3824,7 @@ server = function(input, output) {
       c("... waarvan in schijf 1", aanwas_1),
       c("... waarvan in schijf 2", aanwas_2),
       c("... waarvan in schijf 3", aanwas_3),
-      c("Belasting ...", sum(belasting$belasting, na.rm = T)),
+      c("Belasting ...", round(sum(belasting$belasting, na.rm = T)),2),
       c(paste0("... waarvan in schijf 1 (", t1, ")") , belasting_1),
       c(paste0("... waarvan in schijf 2 (", t2, ")"), belasting_2),
       c(paste0("... waarvan in schijf 3 (", t3, ")"), belasting_3)
@@ -4265,7 +4265,7 @@ server = function(input, output) {
       s1_text = paste0(
         "<b>Schijf 1:</b> ",
         percentify(t1),
-        " belasting over aanwas tot ",
+        " belasting over aanwas boven het hvi tot ",
         number_to_money(s2),
         "."
       )
@@ -4301,7 +4301,7 @@ server = function(input, output) {
       s1_text = paste0(
         "<b>Schijf 1:</b> ",
         percentify(t1),
-        " belasting over aanwas tot ",
+        " belasting over aanwas boven het hvi tot ",
         number_to_money(s2),
         "."
       )
@@ -5113,7 +5113,7 @@ server = function(input, output) {
       
       s1_text = paste0("<b>Schijf 1:</b> ",
                        percentify(t1),
-                       " belasting over aanwas.")
+                       " belasting over aanwas boven het hvi")
       
       # PLOT
       fig = plot_ly(showlegend = F, height = 500) %>%
@@ -5184,7 +5184,7 @@ server = function(input, output) {
         s1_text = paste0(
           "<b>Schijf 1:</b> ",
           percentify(t1),
-          " belasting over aanwas tot ",
+          " belasting over aanwas boven het hvi tot ",
           number_to_money(s2),
           "."
         )
