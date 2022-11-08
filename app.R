@@ -46,7 +46,7 @@ popup_adjusted = function(title, text, footer) {
 }
 
 # negatie %in%
-`%notin%` <- Negate(`%in%`)
+`%notin%` = Negate(`%in%`)
 
 # functie om aanwas in overbruggingswetgeving te bepalen
 overbrug_me = function(spaargeld,
@@ -203,7 +203,7 @@ gen_history = function(row, sd_rend, crisis = "nee") {
   
   data = data %>%
     mutate(aanwas = spaargeld_aanwas + finproduct_aanwas + restbezit_aanwas - schuld_aanwas) %>%
-    mutate_at(vars(-id, -omschrijving), funs(round(., 1))) %>%
+    mutate_at(vars(-id,-omschrijving), funs(round(., 1))) %>%
     arrange(id, jaar)
   
   return(data)
@@ -241,7 +241,7 @@ verreken_verlies = function(data,
       cf_data = subset(data, jaar >= cf_jaar & jaar <= year - 1)
       
       for (i in c(1:nrow(cf_data))) {
-        cf_row = cf_data[i,]
+        cf_row = cf_data[i, ]
         if (cf_row$grondslag < drempel) {
           # als verlies kleiner is dan restant grondslag
           if (abs(data$grondslag[data$jaar == cf_row$jaar]) <= data$grondslag[which(data$jaar == year)] &
@@ -286,7 +286,7 @@ verreken_verlies = function(data,
       cb_data = subset(data, jaar >= cb_jaar & jaar <= year - 1)
       
       for (i in c(1:nrow(cb_data))) {
-        cb_row = cb_data[i,]
+        cb_row = cb_data[i, ]
         
         # als grondslag cb groter is dan nul
         if (cb_row$grondslag > hvi) {
@@ -393,6 +393,28 @@ bepaal_belasting = function(grondslag,
   return(out)
 }
 
+bepaal_belasting_totaal = function(grondslag,
+                                   schijf_2 = NA,
+                                   schijf_3 = NA,
+                                   tarief_1 = 34,
+                                   tarief_2 = NA,
+                                   tarief_3 = NA) {
+  out = sum(
+    bepaal_belasting(
+      grondslag,
+      schijf_2 = NA,
+      schijf_3 = NA,
+      tarief_1 = 34,
+      tarief_2 = NA,
+      tarief_3 = NA
+    )$belasting,
+    na.rm = T
+  )
+  
+  return(out)
+  
+}
+
 # functie om getal om te zetten in bedrag in €
 number_to_money = function(number) {
   options(scipen = 999)
@@ -460,30 +482,20 @@ calculate_variant_stats_macro = function(data = test,
     
     temp$belasting = NA
     temp_ideal$belasting = NA
-    for (j in 1:nrow(temp)) {
-      temp$belasting[j] = sum(
-        bepaal_belasting(
-          temp$grondslag[j],
-          schijf_2 = s2,
-          schijf_3 = s3,
-          tarief_1 = t1,
-          tarief_2 = t2,
-          tarief_3 = t3
-        )$belasting,
-        na.rm = T
-      )
-      temp_ideal$belasting[j] = sum(
-        bepaal_belasting(
-          temp_ideal$grondslag[j],
-          schijf_2 = s2,
-          schijf_3 = s3,
-          tarief_1 = t1,
-          tarief_2 = t2,
-          tarief_3 = t3
-        )$belasting,
-        na.rm = T
+    
+    bepaal_belasting_totaal_adjusted = function(x) {
+      bepaal_belasting_totaal(
+        x,
+        schijf_2 = s2,
+        schijf_3 = s3,
+        tarief_1 = t1,
+        tarief_2 = t2,
+        tarief_3 = t3
       )
     }
+    
+    temp$belasting = sapply(temp$grondslag, FUN = bepaal_belasting_totaal_adjusted)
+    temp$belasting = sapply(temp_ideal$grondslag, FUN = bepaal_belasting_totaal_adjusted)
     
     data_new[[i]] = temp
     data_ideal[[i]] = temp_ideal
@@ -498,7 +510,7 @@ calculate_variant_stats_macro = function(data = test,
   sampsize = 10000
   # @ JOSHA DIT IS DE GROOTTE VAN JE BESTAND, MAAR MOET IK HIER NIET BEST HELE POPULATIE PAKKEN?
   # @ JOSHA KUN JIJ SNEL EVEN UITREKENEN WAT BUDGET ZOU ZIJN ONDER OUDE WETGEVING MET DEZE DATA?
-  popsize = 340000 
+  popsize = 340000
   mpf = popsize / sampsize
   budget_raming = round(sum(data_new$belasting, na.rm = T), 1) * mpf
   
@@ -521,8 +533,8 @@ calculate_variant_stats_macro = function(data = test,
   ), 2)
   
   # overbelasting
-  overbelasting = round(budget_raming - (sum(data_ideal$belasting, na.rm = T) *
-                                           scale / 1000000000), 2)
+  vv_unlimited = sum(data_ideal$belasting, na.rm = T) * mpf
+  overbelasting = ((budget_raming - vv_unlimited) / budget_raming) * 100
   
   return(
     list(
@@ -572,30 +584,19 @@ calculate_variant_stats_micro = function(data = test,
     temp$belasting = NA
     temp_ideal$belasting = NA
     
-    for (j in 1:nrow(temp)) {
-      temp$belasting[j] = sum(
-        bepaal_belasting(
-          temp$grondslag[j],
-          schijf_2 = s2,
-          schijf_3 = s3,
-          tarief_1 = t1,
-          tarief_2 = t2,
-          tarief_3 = t3
-        )$belasting,
-        na.rm = T
-      )
-      temp_ideal$belasting[j] = sum(
-        bepaal_belasting(
-          temp_ideal$grondslag[j],
-          schijf_2 = s2,
-          schijf_3 = s3,
-          tarief_1 = t1,
-          tarief_2 = t2,
-          tarief_3 = t3
-        )$belasting,
-        na.rm = T
+    bepaal_belasting_totaal_adjusted = function(x) {
+      bepaal_belasting_totaal(
+        x,
+        schijf_2 = s2,
+        schijf_3 = s3,
+        tarief_1 = t1,
+        tarief_2 = t2,
+        tarief_3 = t3
       )
     }
+    
+    temp$belasting = sapply(temp$grondslag, FUN = bepaal_belasting_totaal_adjusted)
+    temp_ideal$belasting = sapply(temp_ideal$grondslag, FUN = bepaal_belasting_totaal_adjusted)
     
     data_new[[i]] = temp
     data_ideal[[i]] = temp_ideal
@@ -640,17 +641,19 @@ calculate_variant_stats_micro = function(data = test,
   }
   overbelasting = round(overbelasting, 2)
   
-}
-
-return(
-  list(
-    gini_grondslag = gini_grondslag,
-    gini_belasting = gini_belasting,
-    overbelasting = overbelasting
+  
+  
+  return(
+    list(
+      gini_grondslag = gini_grondslag,
+      gini_belasting = gini_belasting,
+      overbelasting = overbelasting
+    )
   )
-)
-
+  
 }
+
+
 
 # functie om variant door te rekenen voor casus
 gen_combi = function(dat_variant, dat_case, jaar = "alle jaren") {
@@ -661,24 +664,26 @@ gen_combi = function(dat_variant, dat_case, jaar = "alle jaren") {
     cf = dat_variant$cf,
     cb = dat_variant$cb
   )
+  
   if (jaar != "alle jaren") {
     dat_case_verlies = subset(dat_case_verlies, jaar == as.numeric(jaar))
   }
   
-  belasting = list()
-  for (row in c(1:nrow(dat_case_verlies))) {
-    temp = bepaal_belasting(
-      grondslag = dat_case_verlies$grondslag[row],
+  bepaal_belasting_totaal_adjusted = function(x) {
+    bepaal_belasting_totaal(
+      x,
       schijf_2 = dat_variant$schijf_2,
       schijf_3 = dat_variant$schijf_3,
       tarief_1 = dat_variant$tarief_1,
       tarief_2 = dat_variant$tarief_2,
       tarief_3 = dat_variant$tarief_3
     )
-    belasting[[row]] = sum(temp$belasting, na.rm = T)
   }
   
-  belasting = sum(do.call(rbind, belasting), na.rm = T)
+  belasting = sum(
+    sapply(dat_case_verlies$grondslag, FUN = bepaal_belasting_totaal_adjusted),
+    na.rm = T
+  )
   
   # percentage belasting tov aanwas
   if (sum(dat_case$aanwas, na.rm = T) > 0) {
@@ -753,8 +758,6 @@ gen_combi = function(dat_variant, dat_case, jaar = "alle jaren") {
     tarief_2 = dat_variant$tarief_2,
     tarief_3 = dat_variant$tarief_3
   )
-  
-  temp[is.na(temp)] = 0
   
   return(temp_case)
   
@@ -2488,7 +2491,7 @@ server = function(input, output) {
       # voor iedere belastingplichtige
       for (i in c(1:length(unique(data$omschrijving)))) {
         # selecteer belastingplichtige
-        row = subset(data, omschrijving == unique(data$omschrijving)[i])[1,]
+        row = subset(data, omschrijving == unique(data$omschrijving)[i])[1, ]
         
         # genereer geschiedenis belastingplichtige
         datalist[[i]] = gen_history(
@@ -3064,7 +3067,7 @@ server = function(input, output) {
       remove = variant_data_input()[input$variant_data_rows_selected, "variant"]
       variant_data_input() %>%  subset(., variant != remove) %>% variant_data_input()
     } else {
-      upload_data_variant$data = upload_data_variant$data[-input$variant_data_rows_selected,]
+      upload_data_variant$data = upload_data_variant$data[-input$variant_data_rows_selected, ]
     }
   })
   
@@ -3328,7 +3331,7 @@ server = function(input, output) {
         ) %>%
         add_polygons(
           x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(vv_drempel,-space,-space, vv_drempel),
+          y = c(vv_drempel, -space, -space, vv_drempel),
           color = I("grey70"),
           opacity = 0.3,
           name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
@@ -3547,7 +3550,7 @@ server = function(input, output) {
         # elke variant
         for (j in c(1:nrow(variant_data))) {
           temp[[length(temp) + 1]] = gen_combi(
-            dat_variant = variant_data[j,],
+            dat_variant = variant_data[j, ],
             dat_case = subset(
               case_data,
               omschrijving == unique(case_data$omschrijving)[i]
@@ -3577,22 +3580,15 @@ server = function(input, output) {
   ))
   
   
-  dataModal = function(failed = FALSE) {
-    modalDialog(
-      title = "Waarschuwing",
-      "U staat op het punt alle casus en variant data te verwijderen.
-        Weet u zeker dat u deze actie wil voltooien?",
-      footer = tagList(
-        actionButton("annuleer_reset", "Annuleer"),
-        actionButton("ok_reset", "Ga door")
-      )
-    )
-  }
-  
-  
   # KNOP RESET DATA
+  
   observeEvent(input$reset_variant_case_effects, {
-    showModal(dataModal())
+    
+    popup_adjusted(title = "Waarschuwing", text = "U staat op het punt alle casus en variant data te verwijderen.
+        Weet u zeker dat u deze actie wil voltooien?", footer = tagList(
+          actionButton("annuleer_reset", "Annuleer"),
+          actionButton("ok_reset", "Ga door")
+        ))
     
     observeEvent(input$ok_reset, {
       if (is.null(input$upload_data_variant)) {
@@ -3731,6 +3727,8 @@ server = function(input, output) {
     } else {
       case_dat = upload_data$data
     }
+    
+    if (nrow(variant_dat) > 0 & nrow(case_dat)>0){
     case_id = input$micro_3_select_case_selection
     case_dat = subset(case_dat, omschrijving == case_id)
     case_dat = verreken_verlies(
@@ -3833,6 +3831,27 @@ server = function(input, output) {
     ) %>% data.frame() %>%
       setNames(c("", "Bedrag in €"))
     
+    } else {
+      
+    empty = "Geen data beschikbaar"
+      
+    tab = rbind(
+        c("Aanwas ...", empty),
+        c("... waarvan heffingvrij inkomen", empty),
+        c("... waarvan verrekenbaar verlies", empty),
+        c("Grondslag ...", empty),
+        c("... waarvan in schijf 1", empty),
+        c("... waarvan in schijf 2", empty),
+        c("... waarvan in schijf 3", empty),
+        c("Belasting ...", empty),
+        c(paste0("... waarvan in schijf 1 (", "n.v.t.", ")") , empty),
+        c(paste0("... waarvan in schijf 2 (", "n.v.t.", ")"), empty),
+        c(paste0("... waarvan in schijf 3 (", "n.v.t.", ")"), empty)
+      ) %>% data.frame() %>%
+        setNames(c("", "Bedrag in €"))
+      
+    }
+    
     return(tab)
   }
   
@@ -3860,6 +3879,7 @@ server = function(input, output) {
     case_id = input$micro_3_select_case_selection
     case_dat = subset(case_dat, omschrijving == case_id)
     
+    if (nrow(variant_dat)>0 & nrow(case_dat)>0){
     # tarieven en schijven
     s2 = variant_dat$schijf_2
     s3 = variant_dat$schijf_3
@@ -4098,7 +4118,7 @@ server = function(input, output) {
       )
       
       
-    }
+    }} else {text = "Geen data beschikbaar. Voeg data toe in Stap 1 en Stap 2."}
     
     return(text)
   }
@@ -4135,6 +4155,7 @@ server = function(input, output) {
                       omschrijving == input$micro_3_select_case_selection)
     
     
+    if (nrow(variant_dat) > 0 & nrow(case_dat)>0){
     # parameters
     hvi = variant_dat$hvi
     vv_drempel = -variant_dat$verlies_drempel
@@ -4190,7 +4211,7 @@ server = function(input, output) {
       ) %>%
       add_polygons(
         x = c(2025.5, 2025.5, 2045.5, 2045.5),
-        y = c(vv_drempel,-space,-space, vv_drempel),
+        y = c(vv_drempel, -space, -space, vv_drempel),
         color = I("grey70"),
         opacity = 0.3,
         name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
@@ -4346,8 +4367,8 @@ server = function(input, output) {
         hovermode = "x unified",
         showlegend = T
       )
-    
     fig
+    } else {}
     
   })
   
@@ -4848,7 +4869,7 @@ server = function(input, output) {
       remove = variant_data_input_macro()[input$variant_data_macro_rows_selected, "variant"]
       variant_data_input_macro() %>%  subset(., variant != remove) %>% variant_data_input_macro()
     } else {
-      upload_data_variant_macro$data = upload_data_variant_macro$data[-input$variant_data_macro_rows_selected,]
+      upload_data_variant_macro$data = upload_data_variant_macro$data[-input$variant_data_macro_rows_selected, ]
     }
   })
   
@@ -5109,7 +5130,7 @@ server = function(input, output) {
         ) %>%
         add_polygons(
           x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(vv_drempel,-space,-space, vv_drempel),
+          y = c(vv_drempel, -space, -space, vv_drempel),
           color = I("grey70"),
           opacity = 0.3,
           name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
@@ -5286,32 +5307,33 @@ server = function(input, output) {
     
     if (nrow(variant_data) > 0) {
       for (i in c(1:nrow(variant_data))) {
-        variant = variant_data[i, ]
+        variant = variant_data[i,]
         
         
       }
       
     }
-    
-    #if (nrow(variant_data) > 0 & nrow(case_data) > 0){
-    
-    #  temp = list()
-    # elke case
-    #  for (i in c(1:length(unique(case_data$omschrijving)))){
-    # elke variant
-    #    for (j in c(1:nrow(variant_data))){
-    #      temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
-    #
-    #    }}
-    
-    #  temp = do.call(rbind, temp) %>% setNames(varnames)
-    #} else {
-    #  temp = variant_case_effects %>% setNames(varnames) %>% filter(., row_number() %in% -1)
-    #}
-    
-    #return(temp)
-    
   }
+  
+  #if (nrow(variant_data) > 0 & nrow(case_data) > 0){
+  
+  #  temp = list()
+  # elke case
+  #  for (i in c(1:length(unique(case_data$omschrijving)))){
+  # elke variant
+  #    for (j in c(1:nrow(variant_data))){
+  #      temp[[length(temp) + 1]] = gen_combi(dat_variant = variant_data[j,], dat_case = subset(case_data, omschrijving == unique(case_data$omschrijving)[i]))
+  #
+  #    }}
+  
+  #  temp = do.call(rbind, temp) %>% setNames(varnames)
+  #} else {
+  #  temp = variant_case_effects %>% setNames(varnames) %>% filter(., row_number() %in% -1)
+  #}
+  
+  #return(temp)
+  
+  
   
   
   output$variant_population_effects = renderDataTable({
