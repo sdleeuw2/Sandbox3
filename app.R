@@ -203,7 +203,7 @@ gen_history = function(row, sd_rend, crisis = "nee") {
   
   data = data %>%
     mutate(aanwas = spaargeld_aanwas + finproduct_aanwas + restbezit_aanwas - schuld_aanwas) %>%
-    mutate_at(vars(-id,-omschrijving), funs(round(., 1))) %>%
+    mutate_at(vars(-id, -omschrijving), funs(round(., 1))) %>%
     arrange(id, jaar)
   
   return(data)
@@ -241,7 +241,7 @@ verreken_verlies = function(data,
       cf_data = subset(data, jaar >= cf_jaar & jaar <= year - 1)
       
       for (i in c(1:nrow(cf_data))) {
-        cf_row = cf_data[i, ]
+        cf_row = cf_data[i,]
         if (cf_row$grondslag < drempel) {
           # als verlies kleiner is dan restant grondslag
           if (abs(data$grondslag[data$jaar == cf_row$jaar]) <= data$grondslag[which(data$jaar == year)] &
@@ -286,7 +286,7 @@ verreken_verlies = function(data,
       cb_data = subset(data, jaar >= cb_jaar & jaar <= year - 1)
       
       for (i in c(1:nrow(cb_data))) {
-        cb_row = cb_data[i, ]
+        cb_row = cb_data[i,]
         
         # als grondslag cb groter is dan nul
         if (cb_row$grondslag > hvi) {
@@ -611,7 +611,7 @@ calculate_variant_stats_micro = function(data = test,
   data_new$grondslag_perc[data_new$aanwas > 0] = (data_new$grondslag[which(data_new$aanwas > 0)] / data_new$aanwas[which(data_new$aanwas > 0)]) *
     100
   
-  gini_grondslag = round(ineq(data_new$grondslag_perc[which(data_new$jaar == 2045)], type =
+  gini_grondslag = round(ineq(data_new$grondslag_perc[which(data_new$jaar == 2042)], type =
                                 "Gini"), 2)
   
   # belasting (on)gelijkheid
@@ -619,7 +619,7 @@ calculate_variant_stats_micro = function(data = test,
   data_new$belasting_perc[data_new$grondslag > 0] = (data_new$belasting[which(data_new$grondslag > 0)] / data_new$aanwas[which(data_new$grondslag > 0)]) *
     100
   
-  gini_belasting = round(ineq(data_new$belasting_perc[which(data_new$jaar == 2045)], type =
+  gini_belasting = round(ineq(data_new$belasting_perc[which(data_new$jaar == 2042)], type =
                                 "Gini"), 2)
   
   # overbelasting
@@ -891,7 +891,7 @@ variant_stats = calculate_variant_stats_macro(
 
 colnames_variant_population_original = c(
   "variant",
-  "budget",
+  "budget", 
   "gini_budget",
   "gini_grondslag",
   "gini_belasting",
@@ -1265,14 +1265,14 @@ ui = fluidPage(navbarPage(
             inputId = "verlies_voor",
             "Voorwaarts (CF)",
             min = 0,
-            max = 20,
+            max = 15,
             value = 9
           ),
           sliderInput(
             inputId = "verlies_achter",
             "Achterwaarts (CB)",
             min = 0,
-            max = 10,
+            max = 3,
             value = 1
           ),
           
@@ -2154,7 +2154,7 @@ server = function(input, output) {
             actionButton("stefan_ja_2", "Ja natuurlijk!")
           )
         )
-       
+        
       })
       
       
@@ -2492,7 +2492,7 @@ server = function(input, output) {
       # voor iedere belastingplichtige
       for (i in c(1:length(unique(data$omschrijving)))) {
         # selecteer belastingplichtige
-        row = subset(data, omschrijving == unique(data$omschrijving)[i])[1, ]
+        row = subset(data, omschrijving == unique(data$omschrijving)[i])[1,]
         
         # genereer geschiedenis belastingplichtige
         datalist[[i]] = gen_history(
@@ -3068,7 +3068,7 @@ server = function(input, output) {
       remove = variant_data_input()[input$variant_data_rows_selected, "variant"]
       variant_data_input() %>%  subset(., variant != remove) %>% variant_data_input()
     } else {
-      upload_data_variant$data = upload_data_variant$data[-input$variant_data_rows_selected, ]
+      upload_data_variant$data = upload_data_variant$data[-input$variant_data_rows_selected,]
     }
   })
   
@@ -3294,8 +3294,8 @@ server = function(input, output) {
         2 * hvi,
         2 * vv_drempel,
         0.7 * vv_drempel,
-        4 * hvi,
         3 * vv_drempel,
+        4 * hvi,
         1.5 * vv_drempel,
         0.5 * vv_drempel,
         1.3 * hvi,
@@ -3332,7 +3332,7 @@ server = function(input, output) {
         ) %>%
         add_polygons(
           x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(vv_drempel, -space, -space, vv_drempel),
+          y = c(vv_drempel,-space,-space, vv_drempel),
           color = I("grey70"),
           opacity = 0.3,
           name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
@@ -3346,7 +3346,7 @@ server = function(input, output) {
           y = c(vv_drempel - space, ymin, ymin, vv_drempel - space),
           color = I("red"),
           opacity = 0.3,
-          name = "<b>Voorwaartse verliesverrekening:</b>\nverlies mag verrekend worden met grondslag belastingjaar.",
+          name = "<b>Voorwaartse verliesverrekening:</b>\nverlies onder de drempel mag verrekend worden met grondslag belastingjaar.",
           hoverinfo = 'text',
           hovertemplate = '%{text}'
         ) %>%
@@ -3355,7 +3355,7 @@ server = function(input, output) {
           y = c(vv_drempel - space, ymin, ymin, vv_drempel - space),
           color = I("green"),
           opacity = 0.3,
-          name = "<b>Achterwaartse verliesverrekening:</b>\n toekomstig verlies mag verrekend worden met grondslag belastingjaar.",
+          name = "<b>Achterwaartse verliesverrekening:</b>\n toekomstig verlies onder de drempel mag verrekend worden met grondslag belastingjaar.",
           hoverinfo = 'text',
           hovertemplate = '%{text}'
         ) %>%
@@ -3422,7 +3422,7 @@ server = function(input, output) {
         s1_text = paste0(
           "<b>Schijf 1:</b> ",
           percentify(t1),
-          " belasting over aanwas tot ",
+          " belasting over aanwas boven het hvi tot ",
           number_to_money(s2),
           "."
         )
@@ -3430,7 +3430,7 @@ server = function(input, output) {
           s1_text,
           "\n<b>Schijf 2:</b> ",
           percentify(t2),
-          " belasting over aanwas tot ",
+          " belasting over aanwas tussen ", number_to_money(s2), " en ",
           number_to_money(s3),
           "."
         )
@@ -3479,7 +3479,7 @@ server = function(input, output) {
           y =  ~ aanwas,
           opacity = 0.7,
           color = I("black"),
-          line = list(dash = 'dash'),
+          mode = "lines+markers",
           name = "<b>Aanwas</b>",
           hovertemplate = '%{y}'
         ) %>%
@@ -3551,7 +3551,7 @@ server = function(input, output) {
         # elke variant
         for (j in c(1:nrow(variant_data))) {
           temp[[length(temp) + 1]] = gen_combi(
-            dat_variant = variant_data[j, ],
+            dat_variant = variant_data[j,],
             dat_case = subset(
               case_data,
               omschrijving == unique(case_data$omschrijving)[i]
@@ -3584,12 +3584,15 @@ server = function(input, output) {
   # KNOP RESET DATA
   
   observeEvent(input$reset_variant_case_effects, {
-    
-    popup_adjusted(title = "Waarschuwing", text = "U staat op het punt alle casus en variant data te verwijderen.
-        Weet u zeker dat u deze actie wil voltooien?", footer = tagList(
-          actionButton("annuleer_reset", "Annuleer"),
-          actionButton("ok_reset", "Ga door")
-        ))
+    popup_adjusted(
+      title = "Waarschuwing",
+      text = "U staat op het punt alle casus en variant data te verwijderen.
+        Weet u zeker dat u deze actie wil voltooien?",
+      footer = tagList(
+        actionButton("annuleer_reset", "Annuleer"),
+        actionButton("ok_reset", "Ga door")
+      )
+    )
     
     observeEvent(input$ok_reset, {
       if (is.null(input$upload_data_variant)) {
@@ -3729,114 +3732,116 @@ server = function(input, output) {
       case_dat = upload_data$data
     }
     
-    if (nrow(variant_dat) > 0 & nrow(case_dat)>0){
-    case_id = input$micro_3_select_case_selection
-    case_dat = subset(case_dat, omschrijving == case_id)
-    case_dat = verreken_verlies(
-      case_dat,
-      hvi = variant_dat$hvi,
-      cf = variant_dat$cf,
-      cb = variant_dat$cb,
-      drempel = variant_dat$verlies_drempel
-    )
-    
-    if (input$micro_3_select_year == "Alle jaren") {
-      case_dat = case_dat
-    } else {
-      case_dat = subset(case_dat, jaar == as.numeric(input$micro_3_select_year))
-    }
-    
-    # aanwas
-    if (nrow(subset(case_dat, aanwas > 0)) > 0) {
-      aanwas = sum(subset(case_dat, aanwas > 0)$aanwas , na.rm = T)
-    } else {
-      aanwas = 0
-    }
-    
-    # heffing vrij inkomen
-    case_dat$aanwas_na_hvi = case_dat$aanwas - variant_dat$hvi
-    case_dat$aanwas_na_hvi[case_dat$aanwas_na_hvi < 0] = 0
-    aanwas_na_hvi = sum(case_dat$aanwas_na_hvi, na.rm = T)
-    
-    # verrekenbaar verlies
-    case_dat$vv = case_dat$cb + case_dat$cf
-    vv = sum(case_dat$vv, na.rm = T)
-    
-    # belasting
-    grondslag = aanwas_na_hvi - vv
-    belasting = bepaal_belasting(
-      grondslag,
-      schijf_2 = variant_dat$schijf_2,
-      schijf_3 = variant_dat$schijf_3,
-      tarief_1 = variant_dat$tarief_1,
-      tarief_2 = variant_dat$tarief_2,
-      tarief_3 = variant_dat$tarief_3
-    )
-    
-    # tarieven
-    if (!is.na(variant_dat$tarief_1)) {
-      t1 = paste0(percentify(variant_dat$tarief_1), " tarief")
-      aanwas_1 = belasting$aanwas[1]
-      belasting_1 = round(belasting$belasting[1],2)
-    } else {
-      t1 = "n.v.t."
-      aanwas_1 = "n.v.t."
-      belasting_1 = "n.v.t."
-    }
-    
-    if (!is.na(variant_dat$tarief_2)) {
-      t2 = paste0(percentify(variant_dat$tarief_2), " tarief")
-      aanwas_2 = belasting$aanwas[2]
-      belasting_2 = round(belasting$belasting[2],2)
-    } else {
-      t2 = "n.v.t."
-      aanwas_2 = "n.v.t."
-      belasting_2 = "n.v.t."
-    }
-    
-    if (!is.na(variant_dat$tarief_3)) {
-      t3 = paste0(percentify(variant_dat$tarief_3), " tarief")
-      aanwas_3 = belasting$aanwas[3]
-      belasting_3 = round(belasting$belasting[3],2)
-    } else {
-      t3 = "n.v.t."
-      aanwas_3 = "n.v.t."
-      belasting_3 = "n.v.t."
-    }
-    
-    if (variant_dat$hvi > 0) {
-      hvi_tekst = aanwas - aanwas_na_hvi
-    } else {
-      hvi_tekst = "n.v.t."
-    }
-    if (variant_dat$cf > 0 |
-        variant_dat$cb > 0) {
-      vv_tekst = vv
-    } else {
-      vv_tekst = "n.v.t."
-    }
-    
-    
-    tab  = rbind(
-      c("Aanwas ...", aanwas),
-      c("... waarvan heffingvrij inkomen", hvi_tekst),
-      c("... waarvan verrekenbaar verlies", vv_tekst),
-      c("Grondslag ...", grondslag),
-      c("... waarvan in schijf 1", aanwas_1),
-      c("... waarvan in schijf 2", aanwas_2),
-      c("... waarvan in schijf 3", aanwas_3),
-      c("Belasting ...", round(sum(belasting$belasting, na.rm = T),2)),
-      c(paste0("... waarvan in schijf 1 (", t1, ")") , belasting_1),
-      c(paste0("... waarvan in schijf 2 (", t2, ")"), belasting_2),
-      c(paste0("... waarvan in schijf 3 (", t3, ")"), belasting_3)
-    ) %>% data.frame() %>%
-      setNames(c("", "Bedrag in €"))
-    
-    } else {
+    if (nrow(variant_dat) > 0 & nrow(case_dat) > 0) {
+      case_id = input$micro_3_select_case_selection
+      case_dat = subset(case_dat, omschrijving == case_id)
+      case_dat = verreken_verlies(
+        case_dat,
+        hvi = variant_dat$hvi,
+        cf = variant_dat$cf,
+        cb = variant_dat$cb,
+        drempel = variant_dat$verlies_drempel
+      )
       
-    empty = "Geen data beschikbaar"
+      if (input$micro_3_select_year == "Alle jaren") {
+        case_dat = case_dat
+      } else {
+        case_dat = subset(case_dat,
+                          jaar == as.numeric(input$micro_3_select_year))
+      }
       
-    tab = rbind(
+      # aanwas
+      if (nrow(subset(case_dat, aanwas > 0)) > 0) {
+        aanwas = sum(subset(case_dat, aanwas > 0)$aanwas , na.rm = T)
+      } else {
+        aanwas = 0
+      }
+      
+      # heffing vrij inkomen
+      case_dat$aanwas_na_hvi = case_dat$aanwas - variant_dat$hvi
+      case_dat$aanwas_na_hvi[case_dat$aanwas_na_hvi < 0] = 0
+      aanwas_na_hvi = sum(case_dat$aanwas_na_hvi, na.rm = T)
+      
+      # verrekenbaar verlies
+      case_dat$vv = case_dat$cb + case_dat$cf
+      vv = sum(case_dat$vv, na.rm = T)
+      
+      # belasting
+      grondslag = aanwas_na_hvi - vv
+      belasting = bepaal_belasting(
+        grondslag,
+        schijf_2 = variant_dat$schijf_2,
+        schijf_3 = variant_dat$schijf_3,
+        tarief_1 = variant_dat$tarief_1,
+        tarief_2 = variant_dat$tarief_2,
+        tarief_3 = variant_dat$tarief_3
+      )
+      
+      # tarieven
+      if (!is.na(variant_dat$tarief_1)) {
+        t1 = paste0(percentify(variant_dat$tarief_1), " tarief")
+        aanwas_1 = belasting$aanwas[1]
+        belasting_1 = round(belasting$belasting[1], 2)
+      } else {
+        t1 = "n.v.t."
+        aanwas_1 = "n.v.t."
+        belasting_1 = "n.v.t."
+      }
+      
+      if (!is.na(variant_dat$tarief_2)) {
+        t2 = paste0(percentify(variant_dat$tarief_2), " tarief")
+        aanwas_2 = belasting$aanwas[2]
+        belasting_2 = round(belasting$belasting[2], 2)
+      } else {
+        t2 = "n.v.t."
+        aanwas_2 = "n.v.t."
+        belasting_2 = "n.v.t."
+      }
+      
+      if (!is.na(variant_dat$tarief_3)) {
+        t3 = paste0(percentify(variant_dat$tarief_3), " tarief")
+        aanwas_3 = belasting$aanwas[3]
+        belasting_3 = round(belasting$belasting[3], 2)
+      } else {
+        t3 = "n.v.t."
+        aanwas_3 = "n.v.t."
+        belasting_3 = "n.v.t."
+      }
+      
+      if (variant_dat$hvi > 0) {
+        hvi_tekst = aanwas - aanwas_na_hvi
+      } else {
+        hvi_tekst = "n.v.t."
+      }
+      if (variant_dat$cf > 0 |
+          variant_dat$cb > 0) {
+        vv_tekst = vv
+      } else {
+        vv_tekst = "n.v.t."
+      }
+      
+      
+      tab  = rbind(
+        c("Aanwas ...", aanwas),
+        c("... waarvan heffingvrij inkomen", hvi_tekst),
+        c("... waarvan verrekenbaar verlies", vv_tekst),
+        c("Grondslag ...", grondslag),
+        c("... waarvan in schijf 1", aanwas_1),
+        c("... waarvan in schijf 2", aanwas_2),
+        c("... waarvan in schijf 3", aanwas_3),
+        c("Belasting ...", round(
+          sum(belasting$belasting, na.rm = T), 2
+        )),
+        c(paste0("... waarvan in schijf 1 (", t1, ")") , belasting_1),
+        c(paste0("... waarvan in schijf 2 (", t2, ")"), belasting_2),
+        c(paste0("... waarvan in schijf 3 (", t3, ")"), belasting_3)
+      ) %>% data.frame() %>%
+        setNames(c("", "Bedrag in €"))
+      
+    } else {
+      empty = "Geen data beschikbaar"
+      
+      tab = rbind(
         c("Aanwas ...", empty),
         c("... waarvan heffingvrij inkomen", empty),
         c("... waarvan verrekenbaar verlies", empty),
@@ -3845,9 +3850,15 @@ server = function(input, output) {
         c("... waarvan in schijf 2", empty),
         c("... waarvan in schijf 3", empty),
         c("Belasting ...", empty),
-        c(paste0("... waarvan in schijf 1 (", "n.v.t.", ")") , empty),
-        c(paste0("... waarvan in schijf 2 (", "n.v.t.", ")"), empty),
-        c(paste0("... waarvan in schijf 3 (", "n.v.t.", ")"), empty)
+        c(paste0(
+          "... waarvan in schijf 1 (", "n.v.t.", ")"
+        ) , empty),
+        c(paste0(
+          "... waarvan in schijf 2 (", "n.v.t.", ")"
+        ), empty),
+        c(paste0(
+          "... waarvan in schijf 3 (", "n.v.t.", ")"
+        ), empty)
       ) %>% data.frame() %>%
         setNames(c("", "Bedrag in €"))
       
@@ -3880,246 +3891,249 @@ server = function(input, output) {
     case_id = input$micro_3_select_case_selection
     case_dat = subset(case_dat, omschrijving == case_id)
     
-    if (nrow(variant_dat)>0 & nrow(case_dat)>0){
-    # tarieven en schijven
-    s2 = variant_dat$schijf_2
-    s3 = variant_dat$schijf_3
-    t1 = variant_dat$tarief_1
-    t2 = variant_dat$tarief_2
-    t3 = variant_dat$tarief_3
-    schijf_aantal = 1
-    if (!is.na(t3) &
-        !is.na(s3)) {
-      schijf_aantal = 3
-    }
-    if (is.na(t3) &
-        is.na(s3) & !is.na(t2) & !is.na(s2)) {
-      schijf_aantal = 2
-    }
-    
-    # data voor alle jaren
-    if (input$micro_3_select_year == "Alle jaren") {
-      temp = subset(gen_case_effects(),
-                    variant == variant_id &
-                      belastingplichtige == case_id)
+    if (nrow(variant_dat) > 0 & nrow(case_dat) > 0) {
+      # tarieven en schijven
+      s2 = variant_dat$schijf_2
+      s3 = variant_dat$schijf_3
+      t1 = variant_dat$tarief_1
+      t2 = variant_dat$tarief_2
+      t3 = variant_dat$tarief_3
+      schijf_aantal = 1
+      if (!is.na(t3) &
+          !is.na(s3)) {
+        schijf_aantal = 3
+      }
+      if (is.na(t3) &
+          is.na(s3) & !is.na(t2) & !is.na(s2)) {
+        schijf_aantal = 2
+      }
       
-      case_dat$aanwas_na_hvi = case_dat$aanwas - variant_dat$hvi
-      case_dat$aanwas_na_hvi[case_dat$aanwas_na_hvi < 0] = 0
-      aanwas_na_hvi = sum(case_dat$aanwas_na_hvi, na.rm = T)
-      
-      text = paste0(
-        "<b>Aanwas.</b> ",
-        temp$belastingplichtige,
-        " heeft gedurende de periode van 2026 tot 2045 in totaal ",
-        number_to_money(temp$aanwas),
-        " aanwas genoten.
+      # data voor alle jaren
+      if (input$micro_3_select_year == "Alle jaren") {
+        temp = subset(gen_case_effects(),
+                      variant == variant_id &
+                        belastingplichtige == case_id)
+        
+        case_dat$aanwas_na_hvi = case_dat$aanwas - variant_dat$hvi
+        case_dat$aanwas_na_hvi[case_dat$aanwas_na_hvi < 0] = 0
+        aanwas_na_hvi = sum(case_dat$aanwas_na_hvi, na.rm = T)
+        
+        text = paste0(
+          "<b>Aanwas.</b> ",
+          temp$belastingplichtige,
+          " heeft gedurende de periode van 2026 tot 2045 in totaal ",
+          number_to_money(temp$aanwas),
+          " aanwas genoten.
                     <b>Heffingvrij inkomen.</b> Ter berekening van de belasting grondslag is voor zover van toepassing elk jaar het heffingvrij inkomen van ",
-        number_to_money(temp$hvi),
-        "
+          number_to_money(temp$hvi),
+          "
                     in mindering gebracht bij de aanwas. Belastingplichtige kon in totaal " ,
-        number_to_money(temp$aanwas - aanwas_na_hvi) ,
-        " verrekenen. Na verrekening
+          number_to_money(temp$aanwas - aanwas_na_hvi) ,
+          " verrekenen. Na verrekening
                     van het heffingvrij inkomen resteerde er ",
-        number_to_money(aanwas_na_hvi),
-        " aanwas.
+          number_to_money(aanwas_na_hvi),
+          " aanwas.
 
                     <b>Verliesverrekening.</b> Belastingplichtige mag in deze jaren verliezen groter dan ",
-        number_to_money(variant_dat$verlies_drempel),
-        " verrekenen van ",
-        variant_dat$cf,
-        " jaar voor het belastingjaar en ",
-        variant_dat$cb,
-        " jaar na het belastingjaar (teruggaand tot 2026).
+          number_to_money(variant_dat$verlies_drempel),
+          " verrekenen van ",
+          variant_dat$cf,
+          " jaar voor het belastingjaar en ",
+          variant_dat$cb,
+          " jaar na het belastingjaar (teruggaand tot 2026).
                       Belastingplichtige heeft in totaal ",
-        number_to_money(temp$verlies),
-        " verlies geleden, waarvan hij ",
-        number_to_money(temp[, "verrekend verlies"]),
-        " (",
-        percentify(temp[, "verrekend verlies (% verlies)"]),
-        ") heeft mogen verrekenen.
+          number_to_money(temp$verlies),
+          " verlies geleden, waarvan hij ",
+          number_to_money(temp[, "verrekend verlies"]),
+          " (",
+          percentify(temp[, "verrekend verlies (% verlies)"]),
+          ") heeft mogen verrekenen.
 
                       <b>Grondslag.</b>  De grondslag na verliesverrekening is daarmee gelijk aan ",
-        number_to_money(temp$grondslag),
-        ". Dit is ",
-        percentify(temp[, "grondslag (% aanwas)"]),
-        " van de totale aanwas.<br><br>"
-      )
-      
-      if (schijf_aantal == 1) {
+          number_to_money(temp$grondslag),
+          ". Dit is ",
+          percentify(temp[, "grondslag (% aanwas)"]),
+          " van de totale aanwas.<br><br>"
+        )
+        
+        if (schijf_aantal == 1) {
+          text = paste0(
+            text,
+            "<b>Belasting.</b> Belastingplichtige betaalt over deze grondslag ",
+            percentify(t1),
+            " belasting. "
+          )
+        } else if (schijf_aantal == 2) {
+          text = paste0(
+            text,
+            "<b>Belasting.</b> Belastingplichtige betaalt ",
+            percentify(t1),
+            "belastig over grondslag tot ",
+            number_to_money(s2),
+            " en ",
+            percentify(t2),
+            " over het resterend bedrag. "
+          )
+        } else if (schijf_aantal == 3) {
+          text = paste0(
+            text,
+            "<b>Belasting.</b> Belastingplichtige betaalt ",
+            percentify(t1),
+            "belastig over grondslag tot ",
+            number_to_money(s2),
+            ", ",
+            percentify(t2),
+            " over grondslag tot ",
+            number_to_money(s3),
+            " en ",
+            percentify(t3),
+            " over het resterend bedrag. "
+          )
+        }
+        
         text = paste0(
           text,
-          "<b>Belasting.</b> Belastingplichtige betaalt over deze grondslag ",
-          percentify(t1),
-          " belasting. "
+          "In totaal heeft belastingplichtige ",
+          number_to_money(temp[, "belasting €"]),
+          " betaald. Dit is ",
+          percentify(temp[, "belasting (% aanwas)"]),
+          " van zijn aanwas."
         )
-      } else if (schijf_aantal == 2) {
-        text = paste0(
-          text,
-          "<b>Belasting.</b> Belastingplichtige betaalt ",
-          percentify(t1),
-          "belastig over grondslag tot ",
-          number_to_money(s2),
-          " en ",
-          percentify(t2),
-          " over het resterend bedrag. "
-        )
-      } else if (schijf_aantal == 3) {
-        text = paste0(
-          text,
-          "<b>Belasting.</b> Belastingplichtige betaalt ",
-          percentify(t1),
-          "belastig over grondslag tot ",
-          number_to_money(s2),
-          ", ",
-          percentify(t2),
-          " over grondslag tot ",
-          number_to_money(s3),
-          " en ",
-          percentify(t3),
-          " over het resterend bedrag. "
-        )
-      }
-      
-      text = paste0(
-        text,
-        "In totaal heeft belastingplichtige ",
-        number_to_money(temp[, "belasting €"]),
-        " betaald. Dit is ",
-        percentify(temp[, "belasting (% aanwas)"]),
-        " van zijn aanwas."
-      )
-      
-    } else {
-      jaar_nu = as.numeric(input$micro_3_select_year)
-      
-      case_dat = verreken_verlies(
-        case_dat,
-        hvi = variant_dat$hvi,
-        cf = variant_dat$cf,
-        cb = variant_dat$cb,
-        drempel = variant_dat$verlies_drempel
-      )
-      
-      case_dat_jaar = subset(case_dat, jaar == jaar_nu)
-      case_dat_jaar$aanwas_na_hvi = case_dat_jaar$aanwas - variant_dat$hvi
-      case_dat_jaar$aanwas_na_hvi[case_dat_jaar$aanwas_na_hvi < 0] = 0
-      
-      vv = case_dat_jaar$cb + case_dat_jaar$cf
-      
-      vv_dat = subset(case_dat,
-                      jaar >= jaar_nu - variant_dat$cf &
-                        jaar <= jaar_nu + variant_dat$cb)
-      if (nrow(subset(vv_dat, aanwas < 0)) > 0) {
-        verlies = sum(subset(vv_dat, aanwas < 0)$aanwas, na.rm = T)
+        
       } else {
-        verlies = 0
-      }
-      belasting = sum(
-        bepaal_belasting(
-          grondslag = case_dat_jaar$grondslag,
-          schijf_2 = variant_dat$schijf_2,
-          schijf_3 = variant_dat$schijf_3,
-          tarief_1 = variant_dat$tarief_1,
-          tarief_2 = variant_dat$tarief_2,
-          tarief_3 = variant_dat$tarief_2
-        )$belasting,
-        na.rm = T
-      )
-      
-      if (case_dat_jaar$aanwas > 0) {
-        vv_perc = (vv / case_dat_jaar$aanwas) * 100
-        belasting_perc = (belasting / case_dat_jaar$aanwas) * 100
-        grondslag_perc = (case_dat_jaar$grondslag / case_dat_jaar$aanwas) *
-          100
-      } else {
-        vv_perc = 0
-        belasting_perc = 0
-        grondslag_perc = 0
-      }
-      
-      text = paste0(
-        "<b>Aanwas.</b> ",
-        case_dat_jaar$omschrijving,
-        " heeft in ",
-        jaar_nu,
-        " ",
-        number_to_money(case_dat_jaar$aanwas),
-        " aanwas genoten.
+        jaar_nu = as.numeric(input$micro_3_select_year)
+        
+        case_dat = verreken_verlies(
+          case_dat,
+          hvi = variant_dat$hvi,
+          cf = variant_dat$cf,
+          cb = variant_dat$cb,
+          drempel = variant_dat$verlies_drempel
+        )
+        
+        case_dat_jaar = subset(case_dat, jaar == jaar_nu)
+        case_dat_jaar$aanwas_na_hvi = case_dat_jaar$aanwas - variant_dat$hvi
+        case_dat_jaar$aanwas_na_hvi[case_dat_jaar$aanwas_na_hvi < 0] = 0
+        
+        vv = case_dat_jaar$cb + case_dat_jaar$cf
+        
+        vv_dat = subset(case_dat,
+                        jaar >= jaar_nu - variant_dat$cf &
+                          jaar <= jaar_nu + variant_dat$cb)
+        if (nrow(subset(vv_dat, aanwas < 0)) > 0) {
+          verlies = sum(subset(vv_dat, aanwas < 0)$aanwas, na.rm = T)
+        } else {
+          verlies = 0
+        }
+        belasting = sum(
+          bepaal_belasting(
+            grondslag = case_dat_jaar$grondslag,
+            schijf_2 = variant_dat$schijf_2,
+            schijf_3 = variant_dat$schijf_3,
+            tarief_1 = variant_dat$tarief_1,
+            tarief_2 = variant_dat$tarief_2,
+            tarief_3 = variant_dat$tarief_2
+          )$belasting,
+          na.rm = T
+        )
+        
+        if (case_dat_jaar$aanwas > 0) {
+          vv_perc = (vv / case_dat_jaar$aanwas) * 100
+          belasting_perc = (belasting / case_dat_jaar$aanwas) * 100
+          grondslag_perc = (case_dat_jaar$grondslag / case_dat_jaar$aanwas) *
+            100
+        } else {
+          vv_perc = 0
+          belasting_perc = 0
+          grondslag_perc = 0
+        }
+        
+        text = paste0(
+          "<b>Aanwas.</b> ",
+          case_dat_jaar$omschrijving,
+          " heeft in ",
+          jaar_nu,
+          " ",
+          number_to_money(case_dat_jaar$aanwas),
+          " aanwas genoten.
                     <b>Heffingvrij inkomen.</b> Ter berekening van de belasting grondslag is het heffingvrij inkomen van ",
-        number_to_money(variant_dat$hvi),
-        "
+          number_to_money(variant_dat$hvi),
+          "
                     in mindering gebracht bij de aanwas. Na verrekening van het heffingvrij inkomen resteerde er ",
-        number_to_money(case_dat_jaar$aanwas_na_hvi),
-        " aanwas.
+          number_to_money(case_dat_jaar$aanwas_na_hvi),
+          " aanwas.
 
                     <b>Verliesverrekening.</b> Belastingplichtige mag in het belastingjaar verliezen groter dan ",
-        number_to_money(variant_dat$verlies_drempel),
-        " verrekenen van ",
-        variant_dat$cf,
-        " jaar voor het belastingjaar en ",
-        variant_dat$cb,
-        " jaar na het belastingjaar (teruggaand tot 2026).
+          number_to_money(variant_dat$verlies_drempel),
+          " verrekenen van ",
+          variant_dat$cf,
+          " jaar voor het belastingjaar en ",
+          variant_dat$cb,
+          " jaar na het belastingjaar (teruggaand tot 2026).
                       Belastingplichtige heeft in totaal ",
-        number_to_money(verlies),
-        " verlies geleden, waarvan hij ",
-        number_to_money(vv),
-        " (",
-        percentify(vv_perc),
-        ") heeft mogen verrekenen.
+          number_to_money(verlies),
+          " verlies geleden, waarvan hij ",
+          number_to_money(vv),
+          " (",
+          percentify(vv_perc),
+          ") heeft mogen verrekenen.
 
                       <b>Grondslag.</b>  De grondslag na verliesverrekening is daarmee gelijk aan ",
-        number_to_money(case_dat_jaar$grondslag),
-        ". Dit is ",
-        percentify(grondslag_perc),
-        " van de totale aanwas.<br><br>"
-      )
-      
-      if (schijf_aantal == 1) {
+          number_to_money(case_dat_jaar$grondslag),
+          ". Dit is ",
+          percentify(grondslag_perc),
+          " van de totale aanwas.<br><br>"
+        )
+        
+        if (schijf_aantal == 1) {
+          text = paste0(
+            text,
+            "<b>Belasting.</b> Belastingplichtige betaalt over deze grondslag ",
+            percentify(t1),
+            " belasting. "
+          )
+        } else if (schijf_aantal == 2) {
+          text = paste0(
+            text,
+            "<b>Belasting.</b> Belastingplichtige betaalt ",
+            percentify(t1),
+            "belastig over grondslag tot ",
+            number_to_money(s2),
+            " en ",
+            percentify(t2),
+            " over het resterend bedrag. "
+          )
+        } else if (schijf_aantal == 3) {
+          text = paste0(
+            text,
+            "<b>Belasting.</b> Belastingplichtige betaalt ",
+            percentify(t1),
+            "belastig over grondslag tot ",
+            number_to_money(s2),
+            ", ",
+            percentify(t2),
+            " over grondslag tot ",
+            number_to_money(s3),
+            " en ",
+            percentify(t3),
+            " over het resterend bedrag. "
+          )
+        }
+        
         text = paste0(
           text,
-          "<b>Belasting.</b> Belastingplichtige betaalt over deze grondslag ",
-          percentify(t1),
-          " belasting. "
+          "Belastingplichtige betaalt ",
+          number_to_money(belasting),
+          " belasting. Dit is ",
+          percentify(belasting_perc),
+          " van zijn aanwas."
         )
-      } else if (schijf_aantal == 2) {
-        text = paste0(
-          text,
-          "<b>Belasting.</b> Belastingplichtige betaalt ",
-          percentify(t1),
-          "belastig over grondslag tot ",
-          number_to_money(s2),
-          " en ",
-          percentify(t2),
-          " over het resterend bedrag. "
-        )
-      } else if (schijf_aantal == 3) {
-        text = paste0(
-          text,
-          "<b>Belasting.</b> Belastingplichtige betaalt ",
-          percentify(t1),
-          "belastig over grondslag tot ",
-          number_to_money(s2),
-          ", ",
-          percentify(t2),
-          " over grondslag tot ",
-          number_to_money(s3),
-          " en ",
-          percentify(t3),
-          " over het resterend bedrag. "
-        )
+        
+        
       }
-      
-      text = paste0(
-        text,
-        "Belastingplichtige betaalt ",
-        number_to_money(belasting),
-        " belasting. Dit is ",
-        percentify(belasting_perc),
-        " van zijn aanwas."
-      )
-      
-      
-    }} else {text = "Geen data beschikbaar. Voeg data toe in Stap 1 en Stap 2."}
+    } else {
+      text = "Geen data beschikbaar. Voeg data toe in Stap 1 en Stap 2."
+    }
     
     return(text)
   }
@@ -4156,220 +4170,221 @@ server = function(input, output) {
                       omschrijving == input$micro_3_select_case_selection)
     
     
-    if (nrow(variant_dat) > 0 & nrow(case_dat)>0){
-    # parameters
-    hvi = variant_dat$hvi
-    vv_drempel = -variant_dat$verlies_drempel
-    vv_cf = input_jaar - variant_dat$cf - 0.5
-    if (vv_cf < 2026) {
-      vv_cf = 2026 - 0.5
-    }
-    vv_cb = input_jaar + variant_dat$cb + 0.5
-    if (vv_cb > 2045) {
-      vv_cb = 2045 + 0.5
-    }
-    s2 = variant_dat$schijf_2
-    s3 = variant_dat$schijf_3
-    
-    t1 = variant_dat$tarief_1
-    t2 = variant_dat$tarief_2
-    t3 = variant_dat$tarief_3
-    
-    schijf_aantal = 1
-    if (!is.na(t3) &
-        !is.na(s3)) {
-      schijf_aantal = 3
-    }
-    if (is.na(t3) &
-        is.na(s3) & !is.na(t2) & !is.na(s2)) {
-      schijf_aantal = 2
-    }
-    
-    aanwas = case_dat$aanwas
-    jaar = case_dat$jaar
-    
-    ymax = 1.75 * max(hvi, vv_drempel, aanwas)
-    ymin = -ymax
-    space = 0.01 * hvi
-    
-    
-    s1_text = paste0("<b>Schijf 1:</b> ",
-                     percentify(t1),
-                     " belasting over aanwas.")
-    
-    # PLOT
-    fig = plot_ly(showlegend = F, height = 650) %>%
+    if (nrow(variant_dat) > 0 & nrow(case_dat) > 0) {
+      # parameters
+      hvi = variant_dat$hvi
+      vv_drempel = -variant_dat$verlies_drempel
+      vv_cf = input_jaar - variant_dat$cf - 0.5
+      if (vv_cf < 2026) {
+        vv_cf = 2026 - 0.5
+      }
+      vv_cb = input_jaar + variant_dat$cb + 0.5
+      if (vv_cb > 2045) {
+        vv_cb = 2045 + 0.5
+      }
+      s2 = variant_dat$schijf_2
+      s3 = variant_dat$schijf_3
       
-      # hvi en vv drempel
-      add_polygons(
-        x = c(2025.5, 2025.5, 2045.5, 2045.5),
-        y = c(space, hvi, hvi, space),
-        color = I("grey70"),
-        opacity = 0.3,
-        name = "<b>Heffingvrij inkomen:</b> aanwas is niet belastbaar en \nkan ook niet verrekend worden met verliezen.",
-        hoverinfo = 'text',
-        hovertemplate = '%{text}'
-      ) %>%
-      add_polygons(
-        x = c(2025.5, 2025.5, 2045.5, 2045.5),
-        y = c(vv_drempel, -space, -space, vv_drempel),
-        color = I("grey70"),
-        opacity = 0.3,
-        name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
-        hoverinfo = 'text',
-        hovertemplate = '%{text}'
-      ) %>%
+      t1 = variant_dat$tarief_1
+      t2 = variant_dat$tarief_2
+      t3 = variant_dat$tarief_3
       
-      # verliesverrekening
-      add_polygons(
-        x = c(vv_cf, vv_cf, input_jaar, input_jaar),
-        y = c(vv_drempel - space, ymin, ymin, vv_drempel - space),
-        color = I("red"),
-        opacity = 0.3,
-        name = "<b>Voorwaartse verliesverrekening:</b>\nverlies mag verrekend worden met grondslag belastingjaar.",
-        hoverinfo = 'text',
-        hovertemplate = '%{text}'
-      ) %>%
-      add_polygons(
-        x = c(input_jaar, input_jaar, vv_cb, vv_cb),
-        y = c(vv_drempel - space, ymin, ymin, vv_drempel - space),
-        color = I("green"),
-        opacity = 0.3,
-        name = "<b>Achterwaartse verliesverrekening:</b>\n toekomstig verlies mag verrekend worden met grondslag belastingjaar.",
-        hoverinfo = 'text',
-        hovertemplate = '%{text}'
-      ) %>%
+      schijf_aantal = 1
+      if (!is.na(t3) &
+          !is.na(s3)) {
+        schijf_aantal = 3
+      }
+      if (is.na(t3) &
+          is.na(s3) & !is.na(t2) & !is.na(s2)) {
+        schijf_aantal = 2
+      }
       
-      # huidig jaar
-      add_trace(
-        x = input_jaar,
-        y = c(ymin - 10, ymax + 10),
-        opacity = 0.7,
-        color = I("grey20"),
-        mode = 'lines',
-        hovertemplate = ''
-      )
-    
-    # schijven
-    if (schijf_aantal == 1) {
-      fig = fig %>% add_polygons(
-        x = c(2025.5, 2025.5, 2045.5, 2045.5),
-        y = c(hvi, ymax, ymax, hvi),
-        color = I("grey70"),
-        opacity = 0,
-        name = s1_text,
-        hoverinfo = 'text',
-        hovertemplate = '%{text}'
-      )
-    }
-    if (schijf_aantal == 2) {
-      s1_text = paste0(
-        "<b>Schijf 1:</b> ",
-        percentify(t1),
-        " belasting over aanwas boven het hvi tot ",
-        number_to_money(s2),
-        "."
-      )
-      s2_text = paste0(
-        s1_text,
-        "\n<b>Schijf 2:</b> ",
-        percentify(t2),
-        " belasting over aanwas boven ",
-        number_to_money(s2),
-        "."
-      )
-      fig = fig %>%
+      aanwas = case_dat$aanwas
+      jaar = case_dat$jaar
+      
+      ymax = 1.75 * max(hvi, vv_drempel, aanwas)
+      ymin = -ymax
+      space = 0.01 * hvi
+      
+      
+      s1_text = paste0("<b>Schijf 1:</b> ",
+                       percentify(t1),
+                       " belasting over aanwas.")
+      
+      # PLOT
+      fig = plot_ly(showlegend = F, height = 650) %>%
+        
+        # hvi en vv drempel
         add_polygons(
           x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(hvi, s2 - 1, s2 - 1, hvi),
+          y = c(space, hvi, hvi, space),
+          color = I("grey70"),
+          opacity = 0.3,
+          name = "<b>Heffingvrij inkomen:</b> aanwas is niet belastbaar en \nkan ook niet verrekend worden met verliezen.",
+          hoverinfo = 'text',
+          hovertemplate = '%{text}'
+        ) %>%
+        add_polygons(
+          x = c(2025.5, 2025.5, 2045.5, 2045.5),
+          y = c(vv_drempel,-space,-space, vv_drempel),
+          color = I("grey70"),
+          opacity = 0.3,
+          name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
+          hoverinfo = 'text',
+          hovertemplate = '%{text}'
+        ) %>%
+        
+        # verliesverrekening
+        add_polygons(
+          x = c(vv_cf, vv_cf, input_jaar, input_jaar),
+          y = c(vv_drempel - space, ymin, ymin, vv_drempel - space),
+          color = I("red"),
+          opacity = 0.3,
+          name = "<b>Voorwaartse verliesverrekening:</b>\nverlies mag verrekend worden met grondslag belastingjaar.",
+          hoverinfo = 'text',
+          hovertemplate = '%{text}'
+        ) %>%
+        add_polygons(
+          x = c(input_jaar, input_jaar, vv_cb, vv_cb),
+          y = c(vv_drempel - space, ymin, ymin, vv_drempel - space),
+          color = I("green"),
+          opacity = 0.3,
+          name = "<b>Achterwaartse verliesverrekening:</b>\n toekomstig verlies mag verrekend worden met grondslag belastingjaar.",
+          hoverinfo = 'text',
+          hovertemplate = '%{text}'
+        ) %>%
+        
+        # huidig jaar
+        add_trace(
+          x = input_jaar,
+          y = c(ymin - 10, ymax + 10),
+          opacity = 0.7,
+          color = I("grey20"),
+          mode = 'lines',
+          hovertemplate = ''
+        )
+      
+      # schijven
+      if (schijf_aantal == 1) {
+        fig = fig %>% add_polygons(
+          x = c(2025.5, 2025.5, 2045.5, 2045.5),
+          y = c(hvi, ymax, ymax, hvi),
           color = I("grey70"),
           opacity = 0,
           name = s1_text,
           hoverinfo = 'text',
           hovertemplate = '%{text}'
-        ) %>%
-        add_polygons(
-          x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(s2, ymax, ymax, s2),
-          color = I("grey70"),
-          opacity = 0,
-          name = s2_text,
-          hoverinfo = 'text',
-          hovertemplate = '%{text}'
         )
-    }
-    if (schijf_aantal == 3) {
-      s1_text = paste0(
-        "<b>Schijf 1:</b> ",
-        percentify(t1),
-        " belasting over aanwas boven het hvi tot ",
-        number_to_money(s2),
-        "."
-      )
-      s2_text = paste0(
-        s1_text,
-        "\n<b>Schijf 2:</b> ",
-        percentify(t2),
-        " belasting over aanwas tot ",
-        number_to_money(s3),
-        "."
-      )
-      s3_text = paste0(
-        s2_text,
-        "\n<b>Schijf 3:</b> ",
-        percentify(t3),
-        " belasting over aanwas boven ",
-        number_to_money(s3),
-        "."
-      )
+      }
+      if (schijf_aantal == 2) {
+        s1_text = paste0(
+          "<b>Schijf 1:</b> ",
+          percentify(t1),
+          " belasting over aanwas boven het hvi tot ",
+          number_to_money(s2),
+          "."
+        )
+        s2_text = paste0(
+          s1_text,
+          "\n<b>Schijf 2:</b> ",
+          percentify(t2),
+          " belasting over aanwas boven ",
+          number_to_money(s2),
+          "."
+        )
+        fig = fig %>%
+          add_polygons(
+            x = c(2025.5, 2025.5, 2045.5, 2045.5),
+            y = c(hvi, s2 - 1, s2 - 1, hvi),
+            color = I("grey70"),
+            opacity = 0,
+            name = s1_text,
+            hoverinfo = 'text',
+            hovertemplate = '%{text}'
+          ) %>%
+          add_polygons(
+            x = c(2025.5, 2025.5, 2045.5, 2045.5),
+            y = c(s2, ymax, ymax, s2),
+            color = I("grey70"),
+            opacity = 0,
+            name = s2_text,
+            hoverinfo = 'text',
+            hovertemplate = '%{text}'
+          )
+      }
+      if (schijf_aantal == 3) {
+        s1_text = paste0(
+          "<b>Schijf 1:</b> ",
+          percentify(t1),
+          " belasting over aanwas boven het hvi tot ",
+          number_to_money(s2),
+          "."
+        )
+        s2_text = paste0(
+          s1_text,
+          "\n<b>Schijf 2:</b> ",
+          percentify(t2),
+          " belasting over aanwas tot ",
+          number_to_money(s3),
+          "."
+        )
+        s3_text = paste0(
+          s2_text,
+          "\n<b>Schijf 3:</b> ",
+          percentify(t3),
+          " belasting over aanwas boven ",
+          number_to_money(s3),
+          "."
+        )
+        
+        fig = fig %>%
+          add_polygons(
+            x = c(2025.5, 2025.5, 2045.5, 2045.5),
+            y = c(hvi, s2 - 1, s2 - 1, hvi),
+            color = I("grey70"),
+            opacity = 0,
+            name = s1_text,
+            hoverinfo = 'text',
+            hovertemplate = '%{text}'
+          ) %>%
+          add_polygons(
+            x = c(2025.5, 2025.5, 2045.5, 2045.5),
+            y = c(s2, s3 - 1, s3 - 1, s2),
+            color = I("grey70"),
+            opacity = 0,
+            name = s2_text,
+            hoverinfo = 'text',
+            hovertemplate = '%{text}'
+          ) %>%
+          add_polygons(
+            x = c(2025.5, 2025.5, 2045.5, 2045.5),
+            y = c(s3, ymax, ymax, s3),
+            color = I("grey70"),
+            opacity = 0,
+            name = s3_text,
+            hoverinfo = 'text',
+            hovertemplate = '%{text}'
+          )
+      }
       
       fig = fig %>%
-        add_polygons(
-          x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(hvi, s2 - 1, s2 - 1, hvi),
-          color = I("grey70"),
-          opacity = 0,
-          name = s1_text,
-          hoverinfo = 'text',
-          hovertemplate = '%{text}'
+        add_trace(
+          x =  ~ jaar,
+          y =  ~ aanwas,
+          opacity = 0.7,
+          color = I("black"),
+          name = "<b>Aanwas</b>",
+          hovertemplate = '%{y}',
+          mode = "lines+markers"
         ) %>%
-        add_polygons(
-          x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(s2, s3 - 1, s3 - 1, s2),
-          color = I("grey70"),
-          opacity = 0,
-          name = s2_text,
-          hoverinfo = 'text',
-          hovertemplate = '%{text}'
-        ) %>%
-        add_polygons(
-          x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(s3, ymax, ymax, s3),
-          color = I("grey70"),
-          opacity = 0,
-          name = s3_text,
-          hoverinfo = 'text',
-          hovertemplate = '%{text}'
+        layout(
+          yaxis = list(showticklabels = T),
+          hovermode = "x unified",
+          showlegend = T
         )
+      fig
+    } else {
     }
-    
-    fig = fig %>%
-      add_trace(
-        x =  ~ jaar,
-        y =  ~ aanwas,
-        opacity = 0.7,
-        color = I("black"),
-        name = "<b>Aanwas</b>",
-        hovertemplate = '%{y}',
-        mode = "lines+markers"
-      ) %>%
-      layout(
-        yaxis = list(showticklabels = T),
-        hovermode = "x unified",
-        showlegend = T
-      )
-    fig
-    } else {}
     
   })
   
@@ -4870,7 +4885,7 @@ server = function(input, output) {
       remove = variant_data_input_macro()[input$variant_data_macro_rows_selected, "variant"]
       variant_data_input_macro() %>%  subset(., variant != remove) %>% variant_data_input_macro()
     } else {
-      upload_data_variant_macro$data = upload_data_variant_macro$data[-input$variant_data_macro_rows_selected, ]
+      upload_data_variant_macro$data = upload_data_variant_macro$data[-input$variant_data_macro_rows_selected,]
     }
   })
   
@@ -5106,6 +5121,15 @@ server = function(input, output) {
         1.1 * vv_drempel,
         0.2 * vv_drempel
       )
+      
+      if (schijf_aantal == 2) {
+        aanwas[3] = schijf_2 + 400
+      }
+      if (schijf_aantal == 3) {
+        aanwas[3] = schijf_3 + schijf_2 / 2
+        aanwas[4] = schijf_3 + 200
+      }
+      
       jaar = c(2026:(2025 + length(aanwas)))
       
       ymax = 1.75 * max(hvi, vv_drempel, aanwas)
@@ -5131,7 +5155,7 @@ server = function(input, output) {
         ) %>%
         add_polygons(
           x = c(2025.5, 2025.5, 2045.5, 2045.5),
-          y = c(vv_drempel, -space, -space, vv_drempel),
+          y = c(vv_drempel,-space,-space, vv_drempel),
           color = I("grey70"),
           opacity = 0.3,
           name = "<b>Verlies onder verliesverrekenings drempel:</b>\nverlies kan niet verrekend worden.",
@@ -5308,7 +5332,7 @@ server = function(input, output) {
     
     if (nrow(variant_data) > 0) {
       for (i in c(1:nrow(variant_data))) {
-        variant = variant_data[i,]
+        variant = variant_data[i, ]
         
         
       }
