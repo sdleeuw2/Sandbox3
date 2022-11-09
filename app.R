@@ -2154,12 +2154,13 @@ server = function(input, output) {
             actionButton("stefan_ja_2", "Ja natuurlijk!")
           )
         )
+       
       })
+      
       
       observeEvent(input$stefan_nee_2, {
         popup("Okay dan...", "Hij gaat jou ook niet missen.")
       })
-      
       
       observeEvent(input$stefan_ja_2, {
         popup_adjusted(
@@ -3824,7 +3825,7 @@ server = function(input, output) {
       c("... waarvan in schijf 1", aanwas_1),
       c("... waarvan in schijf 2", aanwas_2),
       c("... waarvan in schijf 3", aanwas_3),
-      c("Belasting ...", round(sum(belasting$belasting, na.rm = T)),2),
+      c("Belasting ...", round(sum(belasting$belasting, na.rm = T),2)),
       c(paste0("... waarvan in schijf 1 (", t1, ")") , belasting_1),
       c(paste0("... waarvan in schijf 2 (", t2, ")"), belasting_2),
       c(paste0("... waarvan in schijf 3 (", t3, ")"), belasting_3)
