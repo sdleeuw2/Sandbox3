@@ -1332,8 +1332,8 @@ idleTimer();"
 
 # data.frame with credentials info
 credentials = data.frame(
-  user = c("guest"),
-  password = c("minfin"),
+  user = c("username"),
+  password = c("password"),
   stringsAsFactors = FALSE
 )
 # APPLICATION SECURITY
